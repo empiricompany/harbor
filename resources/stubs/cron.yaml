@@ -1,0 +1,10 @@
+services:
+  cron:
+    image: mcuadros/ofelia:0.3.16
+    command: ["daemon", "--docker", "-f", "label=com.docker.compose.project=${HARBOR_PROJECT_NAME:-harbor}"]
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro

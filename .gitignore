@@ -1,0 +1,6 @@
+/vendor/
+/.php-cs-fixer.cache
+/.phpstan.cache/
+/.phpunit.result.cache
+/.harbor/
+/.rector.cache/

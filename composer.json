@@ -1,0 +1,15 @@
+{
+  "name": "empiricompany/harbor",
+  "description": "Docker-based local development environment and CLI for Maho Commerce applications, orchestrating development runtimes and services.",
+  "license": "MIT",
+  "type": "maho-module",
+  "require": {},
+  "scripts": {
+    "test": "bash tests/harbor.sh",
+    "lint": "if command -v shellcheck >/dev/null; then shellcheck bin/harbor tests/harbor.sh; else echo 'shellcheck is not installed'; fi",
+    "format": "if command -v shfmt >/dev/null; then shfmt -w bin/harbor tests/harbor.sh; else echo 'shfmt is not installed'; fi"
+  },
+  "bin": [
+    "bin/harbor"
+  ]
+}

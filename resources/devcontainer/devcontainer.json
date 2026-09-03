@@ -1,0 +1,7 @@
+{
+  "name": "Maho Harbor",
+  "dockerComposeFile": ["../.harbor/compose.yaml"],
+  "service": "app",
+  "workspaceFolder": "/app",
+  "shutdownAction": "stopCompose"
+}

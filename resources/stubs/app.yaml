@@ -1,0 +1,42 @@
+app:
+  build:
+    context: ../vendor/empiricompany/harbor
+    dockerfile: docker/Dockerfile
+    args:
+      PHP_VERSION: ${HARBOR_PHP_VERSION:-8.4}
+      DEBIAN_VARIANT: ${HARBOR_DEBIAN_VARIANT:-trixie}
+      HARBOR_PHP_EXTENSIONS: ${HARBOR_PHP_EXTENSIONS:-}
+      MAHO_UID: ${HARBOR_UID:-1000}
+      MAHO_GID: ${HARBOR_GID:-1000}
+  image: maho-harbor/${HARBOR_PROJECT_NAME:-harbor}:app-php${HARBOR_PHP_VERSION:-8.4}-trixie
+  depends_on:
+    db:
+      condition: service_healthy
+    mailpit:
+      condition: service_started
+  healthcheck:
+    # The dedicated endpoint is served directly by Caddy and never boots Maho.
+    test: ["CMD", "curl", "-k", "-f", "-sS", "-o", "/dev/null", "https://localhost:${HARBOR_APP_PORT:-8443}/.harbor/health"]
+    interval: 10s
+    timeout: 5s
+    retries: 10
+  environment:
+    MAHO_HARBOR: "1"
+    SERVER_NAME: https://localhost:${HARBOR_APP_PORT:-8443}
+    SERVER_ROOT: public/
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  ports:
+    - "${HARBOR_APP_PORT:-8443}:${HARBOR_APP_PORT:-8443}"
+  volumes:
+    - ${HARBOR_PROJECT_ROOT}:/app
+  labels:
+    ofelia.enabled: "true"
+    ofelia.job-exec.maho-cron-always.schedule: '@every 1m'
+    ofelia.job-exec.maho-cron-always.command: "sh -c 'cd /app && ./maho cron:run always'"
+    ofelia.job-exec.maho-cron-always.user: maho
+    ofelia.job-exec.maho-cron-always.no-overlap: "true"
+    ofelia.job-exec.maho-cron-default.schedule: '@every 5m'
+    ofelia.job-exec.maho-cron-default.command: "sh -c 'cd /app && ./maho cron:run default'"
+    ofelia.job-exec.maho-cron-default.user: maho
+    ofelia.job-exec.maho-cron-default.no-overlap: "true"

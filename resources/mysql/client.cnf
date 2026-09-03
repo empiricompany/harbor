@@ -1,0 +1,3 @@
+[client]
+# Keep client defaults compatible with the MySQL 8.4 client used by the
+# database healthcheck and Harbor CLI commands.

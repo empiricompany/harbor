@@ -1,0 +1,18 @@
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${HARBOR_DB_NAME}
+      MYSQL_USER: ${HARBOR_DB_USER}
+      MYSQL_PASSWORD: ${HARBOR_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${HARBOR_DB_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:${HARBOR_MYSQL_PORT:-3306}:3306"
+    volumes:
+      - harbor-db-data:/var/lib/mysql
+      - ../vendor/empiricompany/harbor/resources/mysql/server.cnf:/etc/mysql/conf.d/server.cnf:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${HARBOR_DB_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20

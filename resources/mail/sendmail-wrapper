@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+exec /usr/bin/msmtp --file=/etc/msmtprc "$@"

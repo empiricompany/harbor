@@ -1,0 +1,6 @@
+services:
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    ports:
+      - "${HARBOR_MAILPIT_PORT:-8025}:8025"
+      - "${HARBOR_MAILPIT_SMTP_PORT:-1025}:1025"

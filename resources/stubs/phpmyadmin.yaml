@@ -1,0 +1,9 @@
+services:
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    profiles: [phpmyadmin]
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    ports:
+      - "${HARBOR_PHPMYADMIN_PORT:-8081}:80"
