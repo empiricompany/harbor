@@ -365,6 +365,24 @@ renders the merged Compose configuration. `open` accepts `app`, `admin`, or
 
 ## Dev Containers
 
+### VS Code PHP integration
+
+For the Maho VS Code extension, configure PHP to run through Harbor from the
+repository root. Add this setting to `.vscode/settings.json`:
+
+```json
+{
+  "maho.phpCommand": "./vendor/bin/harbor php"
+}
+```
+
+Make sure the Harbor application stack is running before using PHP features in
+VS Code:
+
+```bash
+./vendor/bin/harbor up -d
+```
+
 With VS Code and the Dev Containers extension installed:
 
 ```bash
