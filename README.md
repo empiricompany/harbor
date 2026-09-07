@@ -332,6 +332,23 @@ Adminer:    http://localhost:8082
 phpMyAdmin: http://localhost:8081
 ```
 
+## MCP server
+
+Harbor can run the Maho MCP server over stdio for compatible AI clients. Start the
+application stack first, then configure the client to execute Harbor from the
+repository root:
+
+```json
+{
+  "mcpServers": {
+    "maho-stdio": {
+      "command": "./vendor/bin/harbor",
+      "args": ["maho", "dev:mcp:start"]
+    }
+  }
+}
+```
+
 ## Diagnostics and convenience commands
 
 ```bash
