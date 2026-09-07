@@ -230,9 +230,15 @@ TTY_ARGS=()
 
 command=$1
 case "$command" in
-up | down | stop | restart | ps | logs | build | config | start)
+up | stop | restart | ps | logs | build | config | start)
 	shift
 	compose "$command" "$@"
+	;;
+down)
+	shift
+	# Include disabled profile services so they can be removed as orphans.
+	COMPOSE_ARGS+=(--profile '*')
+	compose down --remove-orphans "$@"
 	;;
 php | composer)
 	shift

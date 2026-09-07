@@ -122,6 +122,8 @@ services:
       - harbor
   redis:
     image: 'redis:7.4'
+    profiles:
+      - redis
     command: 'redis-server --maxmemory-policy volatile-lfu'
     restart: unless-stopped
     tmpfs:
