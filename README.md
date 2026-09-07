@@ -179,6 +179,45 @@ Inspect the Compose layers with:
 **Keep secrets in `.harbor/.env` or environment variables, not in committed
 override files.**
 
+### Maho developer mode
+
+The project override enables Maho developer mode for the `app` service:
+
+```yaml
+services:
+  app:
+    environment:
+      MAGE_IS_DEVELOPER_MODE: '1'
+```
+
+After changing the override, recreate the application service so the
+environment is applied:
+
+```bash
+./vendor/bin/harbor up -d --force-recreate app
+```
+
+To disable developer mode while preserving the generated base configuration,
+restore the empty override and recreate `app`:
+
+```bash
+printf 'services: {}\n' > .harbor/docker.override.yaml
+./vendor/bin/harbor up -d --force-recreate app
+```
+
+In this repository `.harbor/.gitignore` explicitly keeps
+`.harbor/docker.override.yaml` under version control, so this developer-mode
+override is project-owned rather than a personal uncommitted override. If a
+local-only variant is needed in another project, keep that file ignored and do
+not commit it.
+
+Verify the merged configuration and the container environment with:
+
+```bash
+./vendor/bin/harbor config
+./vendor/bin/harbor exec --service app printenv MAGE_IS_DEVELOPER_MODE
+```
+
 ## Scheduled Maho jobs
 
 The stack runs the built-in Maho cron groups through Ofelia:
