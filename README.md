@@ -1,5 +1,7 @@
 # Harbor
 
+> **Beta:** this project is actively under development. Behavior and APIs may change at any time; it is not recommended for production use.
+
 Harbor is a Docker-based local development environment for Maho Commerce.
 It provides a small Bash CLI around Docker Compose and convenient commands for
 the Maho containers.
