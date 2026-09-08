@@ -10,9 +10,12 @@ services:
       - "127.0.0.1:${HARBOR_MYSQL_PORT:-3306}:3306"
     volumes:
       - harbor-db-data:/var/lib/mysql
-      - ../vendor/empiricompany/harbor/resources/mysql/server.cnf:/etc/mysql/conf.d/server.cnf:ro
+       - ../vendor/empiricompany/harbor/resources/mysql/server.cnf:/etc/mysql/conf.d/server.cnf:ro
+       - ../vendor/empiricompany/harbor/resources/mysql/client.cnf:/etc/mysql/conf.d/client.cnf:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${HARBOR_DB_ROOT_PASSWORD}"]
       interval: 5s
       timeout: 5s
       retries: 20
+    networks:
+      - harbor

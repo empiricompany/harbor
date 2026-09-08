@@ -3,7 +3,17 @@
   "description": "Docker-based local development environment and CLI for Maho Commerce applications, orchestrating development runtimes and services.",
   "license": "MIT",
   "type": "maho-module",
-  "require": {},
+  "require": {
+  },
+  "autoload": {
+    "psr-4": {
+      "MahoCLI\\": "lib/MahoCLI/"
+    },
+    "classmap": [
+      "lib/MahoCLI/Commands/DbExport.php",
+      "lib/MahoCLI/Commands/DbImport.php"
+    ]
+  },
   "scripts": {
     "test": "bash tests/harbor.sh",
     "lint": "if command -v shellcheck >/dev/null; then shellcheck bin/harbor tests/harbor.sh; else echo 'shellcheck is not installed'; fi",

@@ -27,8 +27,74 @@ composer require --dev empiricompany/harbor
 Harbor is a local-development tool, so `--dev` keeps it out of production
 installations.
 
-`init` creates the local `.harbor` configuration. Review
-`.harbor/.env` before starting the stack. Do not commit `.harbor/.env`.
+After installing the package, regenerate Composer's autoload files so Maho can
+discover the package's database commands: `db:export` and `db:import`.
+Harbor service management is Bash-only and is not registered in the Maho CLI.
+
+The two database commands read the configured connection from `app/etc/local.xml`
+and invoke `mysqldump`/`mysql` against the configured Docker database service.
+They do not run the database on the host; run them through the app container with
+`./vendor/bin/harbor maho ...`.
+
+`init` is a Bash-only bootstrap: the operational manifest is
+`.harbor/compose.yaml`. When missing, `init` creates the following files in
+`.harbor`:
+
+- `.env.example`, copied from `resources/env.example`;
+- `.env`, copied from `resources/env.example`;
+- `.gitignore`, copied from `resources/harbor.gitignore`;
+- `docker.override.yaml` containing `services: {}`;
+- `docker.install.yaml` containing `services: {}`;
+- `compose.yaml`, copied from the current `resources/stubs/compose.stub`.
+
+It does not invoke PHP or Maho. If `.harbor/compose.yaml` already exists,
+`init` without `--force` exits with an error and does not overwrite it. Use
+`init --force` only after reviewing any customizations: it replaces the
+manifest with the current stub. Review `.harbor/.env` before starting the
+stack. Do not commit `.harbor/.env`.
+
+The `compose.stub` already contains the base services `app`, `db`, `mailpit`,
+and `cron`, plus the optional Compose-profile services `redis`, `adminer`, and
+`phpmyadmin`. Service changes only update `HARBOR_PROFILES` in `.harbor/.env`;
+they never modify `.harbor/compose.yaml`, start or stop containers, create
+`.harbor/services.list`, or change `app/etc/local.xml`:
+
+```bash
+./vendor/bin/harbor services list
+./vendor/bin/harbor services add redis
+./vendor/bin/harbor services remove redis
+```
+
+`services list` shows the available profiles and active profiles. After adding
+or removing a profile, run `up -d` to apply the change; `services add/remove`
+does not perform that lifecycle operation. The generated manifest remains
+`.harbor/compose.yaml`.
+
+### Verified profile workflow
+
+This is the complete verified workflow for enabling Redis:
+
+```bash
+./vendor/bin/harbor init --force
+./vendor/bin/harbor services add redis
+./vendor/bin/harbor services list
+./vendor/bin/harbor down
+./vendor/bin/harbor up -d
+./vendor/bin/harbor ps
+```
+
+After `services add redis`, `up -d` is required before `ps`; Redis must then
+appear among the active services. To disable it, run:
+
+```bash
+./vendor/bin/harbor services remove redis
+./vendor/bin/harbor down
+./vendor/bin/harbor up -d
+./vendor/bin/harbor ps
+```
+
+When `up -d` is used without explicit service names, Compose selects the base
+services and any services whose profiles are active through `HARBOR_PROFILES`.
 
 The first application image build may take several minutes:
 
@@ -130,7 +196,7 @@ services:
     image: node:22
     working_dir: /app
     volumes:
-      - ../:/app
+       - .:/app
     networks:
       - harbor
 ```
@@ -311,19 +377,23 @@ Web UI: http://localhost:8025
 SMTP:   mailpit:1025 from containers
 ```
 
-Optional services are controlled through Compose profiles. List available
-services and profiles with:
+Optional services are controlled through Compose profiles already defined in the
+stub. List available services and active profiles with:
 
 ```bash
-./vendor/bin/harbor services
+./vendor/bin/harbor services list
 ```
 
-Enable profiles through `.harbor/.env` or an override layer using
-`HARBOR_PROFILES`, for example:
+Enable or disable profiles with Bash; these commands preserve every other
+`.harbor/.env` variable:
 
 ```dotenv
 HARBOR_PROFILES=redis,adminer
 ```
+
+For example, `./vendor/bin/harbor services add redis` and
+`./vendor/bin/harbor services remove redis` update only that line. No change is
+made to `app/etc/local.xml`.
 
 Adminer and phpMyAdmin use the default local URLs when enabled:
 

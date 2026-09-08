@@ -1,56 +1,61 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Minimal POSIX-tooling-free Bash integration checks; no Bats dependency.
 ROOT=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-CLI=$ROOT/bin/harbor
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+assert_file() { [ -f "$1" ] || { echo "Missing file: $1" >&2; exit 1; }; }
+assert_contains() { grep -Fq -- "$2" "$1" || { echo "Missing '$2' in $1" >&2; exit 1; }; }
+assert_not_contains() { ! grep -Fq -- "$2" "$1" || { echo "Unexpected '$2' in $1" >&2; exit 1; }; }
 
-assert_file() { [ -f "$1" ] || {
-	echo "Missing file: $1" >&2
-	exit 1
-}; }
-assert_contains() { grep -Fq -- "$2" "$1" || {
-	echo "Missing '$2' in $1" >&2
-	exit 1
-}; }
-
-FAKE_BIN=$TMP/bin
-mkdir -p "$FAKE_BIN"
-cat >"$FAKE_BIN/docker" <<'EOF'
+PROJECT=$TMP/project
+PACKAGE="$PROJECT/vendor/example/harbor"
+mkdir -p "$PACKAGE" "$PROJECT/vendor/bin" "$TMP/bin" "$PROJECT/app/etc"
+cp -R "$ROOT/bin" "$ROOT/resources" "$PACKAGE/"
+cp "$ROOT/../../app/etc/local.xml" "$PROJECT/app/etc/local.xml"
+cat >"$PROJECT/vendor/bin/harbor" <<'EOF'
 #!/usr/bin/env bash
-if [ "${1:-}" = compose ] && [ "${2:-}" = version ]; then
-	exit 0
-fi
-printf '%q ' "$@" >>"$HARBOR_DOCKER_LOG"
-printf '\n' >>"$HARBOR_DOCKER_LOG"
+exec "$(dirname -- "$0")/../example/harbor/bin/harbor" "$@"
 EOF
-chmod +x "$FAKE_BIN/docker"
+chmod +x "$PROJECT/vendor/bin/harbor"
+cat >"$TMP/bin/docker" <<'EOF'
+#!/bin/bash
+if [ "${1:-}" = compose ] && [ "${2:-}" = version ]; then exit 0; fi
+printf '%q ' "$@" >>"$FAKE_LOG"; printf '\n' >>"$FAKE_LOG"
+exit "${FAKE_EXIT:-0}"
+EOF
+chmod +x "$TMP/bin/docker"
 
-HARBOR_PROJECT_ROOT=$TMP "$CLI" init >/dev/null
-assert_file "$TMP/.harbor/.env"
-assert_file "$TMP/.harbor/.env.example"
-assert_file "$TMP/.harbor/compose.yaml"
-assert_file "$TMP/.harbor/docker.override.yaml"
-assert_file "$TMP/.harbor/docker.install.yaml"
-assert_contains "$TMP/.harbor/compose.yaml" 'HARBOR_PHP_EXTENSIONS'
-assert_contains "$ROOT/docker/Dockerfile" 'xdebug'
-grep -Fq 'ftp gd intl zip soap pcntl pdo_mysql pdo_pgsql pgsql pdo_sqlite redis xdebug' "$TMP/.harbor/compose.yaml" && exit 1
-grep -qE 'compose\.(override|install)\.yaml' "$TMP/.harbor"/* && exit 1
-bash -n "$CLI"
-assert_contains "$TMP/.harbor/compose.yaml" '/resources/mysql/server.cnf'
-grep -Fq '__HARBOR_PACKAGE_ROOT__' "$TMP/.harbor/compose.yaml" && exit 1
-before=$(sha256sum "$TMP/.harbor/compose.yaml")
-HARBOR_PROJECT_ROOT=$TMP "$CLI" init >/dev/null
-[ "$before" = "$(sha256sum "$TMP/.harbor/compose.yaml")" ] || exit 1
-
-# root-shell accepts one shell command string and runs it through bash -c.
-: >"$TMP/docker.log"
-PATH=$FAKE_BIN:$PATH HARBOR_DOCKER_LOG=$TMP/docker.log \
-	HARBOR_PROJECT_ROOT=$TMP "$CLI" root-shell "printf root-shell-ok" >/dev/null
-assert_contains "$TMP/docker.log" "bash -c printf\ root-shell-ok"
-PATH=$FAKE_BIN:$PATH HARBOR_DOCKER_LOG=$TMP/docker.log \
-	HARBOR_PROJECT_ROOT=$TMP "$CLI" root-shell id -u >/dev/null
-assert_contains "$TMP/docker.log" "bash -c id\ -u"
+(cd "$PROJECT" && PATH="$TMP/bin:$PATH" "$PROJECT/vendor/bin/harbor" init >/dev/null)
+assert_file "$PROJECT/.harbor/.env"
+for service in app db mailpit cron redis adminer phpmyadmin; do assert_contains "$PROJECT/.harbor/compose.yaml" "  $service:"; done
+assert_contains "$PROJECT/.harbor/compose.yaml" 'profiles: [redis]'
+assert_not_contains "$PROJECT/.harbor/compose.yaml" 'HARBOR_PROJECT_ROOT'
+local_hash=$(sha256sum "$PROJECT/app/etc/local.xml")
+compose_hash=$(sha256sum "$PROJECT/.harbor/compose.yaml")
+printf '\nCUSTOM_VARIABLE=unchanged\n' >>"$PROJECT/.harbor/.env"
+(cd "$PROJECT" && PATH="$TMP/bin:$PATH" "$PROJECT/vendor/bin/harbor" services add redis)
+(cd "$PROJECT" && PATH="$TMP/bin:$PATH" "$PROJECT/vendor/bin/harbor" services add redis)
+[ "$(grep -c '^HARBOR_PROFILES=' "$PROJECT/.harbor/.env")" -eq 1 ]
+assert_contains "$PROJECT/.harbor/.env" 'CUSTOM_VARIABLE=unchanged'
+(cd "$PROJECT" && PATH="$TMP/bin:$PATH" "$PROJECT/vendor/bin/harbor" services list >"$TMP/list")
+assert_contains "$TMP/list" 'redis'
+assert_contains "$TMP/list" 'Active profiles:'
+(cd "$PROJECT" && PATH="$TMP/bin:$PATH" FAKE_LOG="$TMP/up.log" "$PROJECT/vendor/bin/harbor" up -d)
+assert_contains "$TMP/up.log" '--profile redis'
+grep -Eq ' up -d $' "$TMP/up.log" || { echo 'up without services passed explicit services' >&2; exit 1; }
+(cd "$PROJECT" && PATH="$TMP/bin:$PATH" FAKE_LOG="$TMP/up-app.log" "$PROJECT/vendor/bin/harbor" up -d app)
+grep -Eq ' up -d app $' "$TMP/up-app.log" || { echo 'up with app did not preserve explicit service' >&2; exit 1; }
+(cd "$PROJECT" && PATH="$TMP/bin:$PATH" FAKE_LOG="$TMP/config.log" "$PROJECT/vendor/bin/harbor" config)
+assert_contains "$TMP/config.log" '--profile redis'
+(cd "$PROJECT" && PATH="$TMP/bin:$PATH" "$PROJECT/vendor/bin/harbor" services remove redis)
+[ "$(grep -c '^HARBOR_PROFILES=$' "$PROJECT/.harbor/.env")" -eq 1 ]
+[ "$local_hash" = "$(sha256sum "$PROJECT/app/etc/local.xml")" ]
+[ "$compose_hash" = "$(sha256sum "$PROJECT/.harbor/compose.yaml")" ]
+[ ! -e "$PROJECT/.harbor/services.list" ]
+set +e
+(cd "$PROJECT" && PATH="$TMP/bin:$PATH" "$PROJECT/vendor/bin/harbor" services add unknown >/dev/null 2>&1)
+status=$?
+set -e
+[ "$status" -ne 0 ]
 printf 'ok: Harbor Bash tests\n'

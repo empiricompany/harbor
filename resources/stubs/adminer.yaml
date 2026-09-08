@@ -6,3 +6,5 @@ services:
       ADMINER_DEFAULT_SERVER: db
     ports:
       - "${HARBOR_ADMINER_PORT:-8082}:8080"
+    networks:
+      - harbor

@@ -10,27 +10,20 @@ fail() {
 	exit 1
 }
 
+usage_error() {
+	printf 'Harbor: %s\n' "$*" >&2
+	exit 2
+}
+
 resolve_package_root() {
-	local source base target
-	source=${BASH_SOURCE[0]}
-
-	while [ -L "$source" ]; do
-		base=$(CDPATH='' cd -- "$(dirname -- "$source")" && pwd)
-		target=$(readlink "$source")
-		case "$target" in
-		/*) source=$target ;;
-		*) source=$base/$target ;;
-		esac
-	done
-
-	source=$(CDPATH='' cd -- "$(dirname -- "$source")" && pwd)/$(basename -- "$source")
-	CDPATH='' cd -- "$(dirname -- "$source")/.." && pwd
+	CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd
 }
 
 PACKAGE_ROOT=$(resolve_package_root)
-PROJECT_ROOT=${HARBOR_PROJECT_ROOT:-$(pwd)}
+PROJECT_ROOT=$(pwd)
 HARBOR_DIR=.harbor
 ENV_FILE=$HARBOR_DIR/.env
+COMPOSE_FILE=.harbor/compose.yaml
 
 [ -d "$PROJECT_ROOT" ] || fail "project root does not exist: $PROJECT_ROOT"
 cd "$PROJECT_ROOT" || fail "unable to access project root: $PROJECT_ROOT"
@@ -40,13 +33,90 @@ env_value() {
 	sed -n "s/^${key}=//p" "$ENV_FILE" | head -n1
 }
 
+AVAILABLE_PROFILES=(redis adminer phpmyadmin)
+
+profile_is_available() {
+	local candidate=$1 profile
+	for profile in "${AVAILABLE_PROFILES[@]}"; do
+		[ "$candidate" = "$profile" ] && return 0
+	done
+	return 1
+}
+
+profile_list() {
+	local value=${1:-} profile
+	IFS=',' read -r -a profiles <<<"$value"
+	for profile in "${profiles[@]}"; do
+		[ -n "$profile" ] && printf '%s\n' "$profile"
+	done
+}
+
+profile_enabled() {
+	local candidate=$1 profile
+	while IFS= read -r profile; do
+		[ "$profile" = "$candidate" ] && return 0
+	done < <(profile_list "$(env_value HARBOR_PROFILES)")
+	return 1
+}
+
+write_profiles() {
+	local new_value=$1 tmp
+	tmp=$(mktemp "$ENV_FILE.XXXXXX") || fail 'unable to create temporary .env file'
+	awk -v value="$new_value" '
+		BEGIN { replaced = 0 }
+		/^HARBOR_PROFILES=/ {
+			if (!replaced) { print "HARBOR_PROFILES=" value; replaced = 1 }
+			next
+		}
+		{ print }
+		END { if (!replaced) print "HARBOR_PROFILES=" value }
+	' "$ENV_FILE" >"$tmp" || { rm -f "$tmp"; fail 'unable to update .harbor/.env'; }
+	cat "$tmp" >"$ENV_FILE" || { rm -f "$tmp"; fail 'unable to update .harbor/.env'; }
+	rm -f "$tmp"
+}
+
+set_profile() {
+	local action=$1 requested=$2 value profile found=0 result=()
+	profile_is_available "$requested" || fail "unknown service '$requested' (available: ${AVAILABLE_PROFILES[*]})"
+	value=$(env_value HARBOR_PROFILES)
+	while IFS= read -r profile; do
+		[ -n "$profile" ] || continue
+		if [ "$action" = add ] && [ "$profile" = "$requested" ]; then found=1; fi
+		if [ "$action" = remove ] && [ "$profile" = "$requested" ]; then continue; fi
+		case " ${result[*]} " in *" $profile "*) ;; *) result+=("$profile");; esac
+	done < <(profile_list "$value")
+	[ "$action" = add ] && [ "$found" -eq 0 ] && result+=("$requested")
+	write_profiles "$(IFS=,; echo "${result[*]}")"
+}
+
+services_command() {
+	local action=${1:-list} service
+	shift || true
+	case "$action" in
+	list)
+		[ "$#" -eq 0 ] || usage_error 'services list does not accept arguments'
+		echo 'Available profiles:'
+		printf '  %s\n' "${AVAILABLE_PROFILES[@]}"
+		echo 'Active profiles:'
+		profile_list "$(env_value HARBOR_PROFILES)" | sed 's/^/  /'
+		;;
+	add|remove)
+		[ "$#" -eq 1 ] || usage_error "services $action requires a service name"
+		service=$1
+		set_profile "$action" "$service"
+		;;
+*) fail 'usage: harbor services {list|add|remove}' ;;
+	esac
+}
+
 compose_command() {
+	command -v docker >/dev/null 2>&1 || fail "Docker CLI is not available; install Docker and ensure 'docker' is on PATH"
 	if docker compose version >/dev/null 2>&1; then
 		printf '%s\n' 'plugin'
 	elif command -v docker-compose >/dev/null 2>&1; then
 		printf '%s\n' 'standalone'
 	else
-		fail 'Docker Compose is not available'
+		fail 'Docker Compose is not available; install the Docker Compose plugin or docker-compose'
 	fi
 }
 
@@ -56,10 +126,16 @@ build_compose_args() {
 	project_name=${project_name:-harbor}
 	profiles_value=${HARBOR_PROFILES:-$(env_value HARBOR_PROFILES)}
 	COMPOSE_ARGS=(
-		--env-file "$ENV_FILE"
+		--env-file .harbor/.env
 		-p "$project_name"
-		-f "$HARBOR_DIR/compose.yaml"
+		-f .harbor/compose.yaml
 	)
+	# Older/empty manifests were produced before the base services became part
+	# of the scaffold. Overlay the canonical base definition without rewriting
+	# the user's manifest; custom services in the normal override files remain.
+	if grep -Eq '^services:[[:space:]]*\{[[:space:]]*\}[[:space:]]*$' "$COMPOSE_FILE"; then
+		COMPOSE_ARGS+=( -f "$PACKAGE_ROOT/resources/stubs/compose.stub" )
+	fi
 
 	[ -f "$HARBOR_DIR/docker.override.yaml" ] && COMPOSE_ARGS+=(
 		-f "$HARBOR_DIR/docker.override.yaml"
@@ -89,49 +165,48 @@ compose() {
 }
 
 require_configuration() {
-	if [ ! -f "$ENV_FILE" ] || [ ! -f "$HARBOR_DIR/compose.yaml" ]; then
-		fail 'configuration is missing: run harbor init from the project root'
+	if [ ! -f "$ENV_FILE" ] || [ ! -f "$COMPOSE_FILE" ]; then
+		fail 'configuration is missing; run ./vendor/bin/harbor init from the project root'
 	fi
 }
 
 init_project() {
+	local force=0
+	[ "${1:-}" = --force ] || [ "${1:-}" = -f ] && force=1
+	[ "$#" -le 1 ] || usage_error 'usage: harbor init [--force]'
 	mkdir -p "$HARBOR_DIR"
-
-	[ -f "$HARBOR_DIR/.env.example" ] || cp \
-		"$PACKAGE_ROOT/resources/env.example" "$HARBOR_DIR/.env.example"
-	[ -f "$ENV_FILE" ] || cp "$HARBOR_DIR/.env.example" "$ENV_FILE"
-
-	if [ ! -f "$HARBOR_DIR/compose.yaml" ]; then
-		sed "s#__HARBOR_PACKAGE_ROOT__#$PACKAGE_ROOT#g" \
-			"$PACKAGE_ROOT/resources/stubs/compose.yaml" \
-			>"$HARBOR_DIR/compose.yaml"
+	[ -e "$HARBOR_DIR/.env.example" ] || cp "$PACKAGE_ROOT/resources/env.example" "$HARBOR_DIR/.env.example"
+	[ -e "$ENV_FILE" ] || cp "$PACKAGE_ROOT/resources/env.example" "$ENV_FILE"
+	[ -e "$HARBOR_DIR/.gitignore" ] || cp "$PACKAGE_ROOT/resources/harbor.gitignore" "$HARBOR_DIR/.gitignore"
+	[ -e "$HARBOR_DIR/docker.override.yaml" ] || printf 'services: {}\n' >"$HARBOR_DIR/docker.override.yaml"
+	[ -e "$HARBOR_DIR/docker.install.yaml" ] || printf 'services: {}\n' >"$HARBOR_DIR/docker.install.yaml"
+	if [ ! -e "$COMPOSE_FILE" ] || [ "$force" -eq 1 ]; then
+		cp "$PACKAGE_ROOT/resources/stubs/compose.stub" "$COMPOSE_FILE"
+	else
+		fail "$COMPOSE_FILE already exists (use --force to replace it)"
 	fi
-
-	[ -f "$HARBOR_DIR/.gitignore" ] || cp \
-		"$PACKAGE_ROOT/resources/harbor.gitignore" "$HARBOR_DIR/.gitignore"
-
-	# These are deliberately empty Compose layers, not generated PHP/YAML
-	# configuration. They are stable names kept under project control.
-	[ -f "$HARBOR_DIR/docker.override.yaml" ] || cat >"$HARBOR_DIR/docker.override.yaml" <<'EOF'
-services: {}
-EOF
-	[ -f "$HARBOR_DIR/docker.install.yaml" ] || cat >"$HARBOR_DIR/docker.install.yaml" <<'EOF'
-services: {}
-EOF
-
-	printf 'Harbor initialized in %s\n' "$HARBOR_DIR"
 }
+
+maho_scaffold() { "$PROJECT_ROOT/maho" "$@"; }
 
 show_help() {
 	cat <<'EOF'
 Harbor - Maho local development environment
 
-Usage: harbor <command> [arguments]
+Usage: ./vendor/bin/harbor <command> [arguments]
 
 Getting started:
-  harbor init        Create the local .harbor configuration
-  harbor up -d       Start the Maho development stack
-  harbor doctor      Check Docker, Compose, and running services
+	./vendor/bin/harbor init       Create .harbor files and .harbor/compose.yaml
+  # Review and adjust .harbor/.env
+  ./vendor/bin/harbor up -d      Start the Maho development stack
+  ./vendor/bin/harbor doctor      Check Docker, Compose, configuration, and services
+
+Examples:
+  ./vendor/bin/harbor php -v
+  ./vendor/bin/harbor composer install
+  ./vendor/bin/harbor maho cache:flush
+  ./vendor/bin/harbor bin phpunit
+  ./vendor/bin/harbor shell
 
 Lifecycle:
   up [options]       Create and start the stack (-d, --build, [services])
@@ -147,7 +222,7 @@ Container tools:
   php                Run PHP in the app container
   composer           Run Composer in the app container
   maho               Run the Maho CLI in the app container
-  bin <tool>         Run a vendor/bin executable in app
+  bin <tool>         Run a vendor/bin executable in app (example: bin phpunit)
   mysql              Run MySQL with configured credentials
   redis              Run redis-cli in the Redis container
   shell [options]    Open Bash; supports -s/--service
@@ -159,10 +234,10 @@ Container tools:
   phpstan            Run PHPStan through vendor/bin/phpstan
 
 Project tools:
-  init               Create the .harbor project configuration
+  init               Create .harbor files and .harbor/compose.yaml from compose.stub
   doctor             Check Docker, Compose, configuration, and services
   open [target]      Open app, admin, or mailpit (default: app)
-  services <action>  List services, profiles, or run a profile action
+  services <action>  List or change optional Compose profiles
   devcontainer       Generate Dev Container configuration (--force to replace)
 
 Options:
@@ -170,6 +245,7 @@ Options:
 
 Run commands from the Maho project root. Custom services and jobs belong in
 .harbor/docker.override.yaml or .harbor/docker.install.yaml.
+Unknown commands are delegated to Docker Compose unchanged.
 EOF
 }
 
@@ -205,12 +281,6 @@ doctor() {
 	compose ps
 }
 
-if [ "${1:-}" = init ]; then
-	shift
-	init_project "$@"
-	exit 0
-fi
-
 [ "${1:-}" = help ] || [ "${1:-}" = --help ] || [ "${1:-}" = -h ] && {
 	show_help
 	exit 0
@@ -221,8 +291,21 @@ fi
 	exit 0
 }
 
+[ "${1:-}" = init ] && {
+	shift
+	init_project "$@"
+	exit $?
+}
+
+[ "${1:-}" = services ] && {
+	shift
+	[ -f "$ENV_FILE" ] || fail 'configuration is missing; run ./vendor/bin/harbor init from the project root'
+	services_command "$@"
+	exit $?
+}
+
 require_configuration
-command -v docker >/dev/null 2>&1 || fail 'Docker is not available'
+command -v docker >/dev/null 2>&1 || fail "Docker CLI is not available; install Docker and ensure 'docker' is on PATH"
 build_compose_args
 
 TTY_ARGS=()
@@ -230,9 +313,13 @@ TTY_ARGS=()
 
 command=$1
 case "$command" in
-up | stop | restart | ps | logs | build | config | start)
-	shift
-	compose "$command" "$@"
+	up)
+		shift
+		compose up "$@"
+	;;
+	stop | restart | ps | logs | build | config | start)
+		shift
+		compose "$command" "$@"
 	;;
 down)
 	shift
@@ -248,9 +335,9 @@ maho)
 	shift
 	app_exec php maho "$@"
 	;;
-bin)
+	bin)
 	shift
-	[ "$#" -gt 0 ] || fail 'bin requires a command'
+	[ "$#" -gt 0 ] || usage_error 'bin requires a tool (example: ./vendor/bin/harbor bin phpunit)'
 	tool=$1
 	shift
 	app_exec "./vendor/bin/$tool" "$@"
@@ -289,7 +376,7 @@ shell)
 	shift
 	service=app
 	if [ "${1:-}" = --service ] || [ "${1:-}" = -s ]; then
-		[ "$#" -ge 2 ] || fail '--service requires a value'
+		[ "$#" -ge 2 ] || usage_error '--service requires a value (example: ./vendor/bin/harbor shell --service app)'
 		service=$2
 		shift 2
 	fi
@@ -303,7 +390,7 @@ root-shell)
 		compose exec "${TTY_ARGS[@]}" -u root app bash -c "$*"
 	fi
 	;;
-exec)
+	exec)
 	shift
 	service=app
 	user_args=()
@@ -311,12 +398,12 @@ exec)
 	while [ "$#" -gt 0 ]; do
 		case "$1" in
 		--service | -s)
-			[ "$#" -ge 2 ] || fail "$1 requires a value"
+			[ "$#" -ge 2 ] || usage_error "$1 requires a value (example: ./vendor/bin/harbor exec --service app id)"
 			service=$2
 			shift 2
 			;;
 		--user | -u)
-			[ "$#" -ge 2 ] || fail "$1 requires a value"
+			[ "$#" -ge 2 ] || usage_error "$1 requires a value (example: ./vendor/bin/harbor exec --user www-data id)"
 			user_args=(-u "$2")
 			shift 2
 			;;
@@ -327,20 +414,12 @@ exec)
 		*) break ;;
 		esac
 	done
+	[ "$#" -gt 0 ] || usage_error 'exec requires a command (example: ./vendor/bin/harbor exec php -v)'
 	[ "${#exec_args[@]}" -gt 0 ] || exec_args=("${TTY_ARGS[@]}")
 	compose exec "${exec_args[@]}" "${user_args[@]}" "$service" "$@"
 	;;
 services)
-	shift
-	case "${1:-list}" in
-	list) compose config --services ;;
-	profiles) compose config --profiles ;;
-	up)
-		shift
-		compose up "$@"
-		;;
-	*) fail 'usage: harbor services {list|profiles|up [arguments]}' ;;
-	esac
+	fail 'services must be handled before runtime configuration'
 	;;
 doctor)
 	shift

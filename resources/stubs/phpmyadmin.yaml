@@ -7,3 +7,5 @@ services:
       PMA_PORT: 3306
     ports:
       - "${HARBOR_PHPMYADMIN_PORT:-8081}:80"
+    networks:
+      - harbor
