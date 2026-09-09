@@ -51,9 +51,6 @@ The application URL is controlled by `HARBOR_APP_URL` and defaults to `https://l
 Project files are generated in [`.harbor/`](../../.harbor/). Do not edit [`.harbor/compose.yaml`](../../.harbor/compose.yaml) for normal customization; use [`.harbor/docker.override.yaml`](../../.harbor/docker.override.yaml) or [`.harbor/docker.install.yaml`](../../.harbor/docker.install.yaml).
 
 ## Main commands
-
-These examples match [`localdev/harbor/bin/harbor`](bin/harbor).
-
 ### Lifecycle
 
 ```bash
@@ -263,6 +260,5 @@ Run the launcher from the directory containing `vendor/`, `.harbor/`, and the Ma
 From the Harbor package directory, the shell test suite can run without starting containers:
 
 ```bash
-cd localdev/harbor
 bash tests/harbor.sh
 ```

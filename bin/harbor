@@ -74,8 +74,14 @@ write_profiles() {
 		}
 		{ print }
 		END { if (!replaced) print "HARBOR_PROFILES=" value }
-	' "$ENV_FILE" >"$tmp" || { rm -f "$tmp"; fail 'unable to update .harbor/.env'; }
-	cat "$tmp" >"$ENV_FILE" || { rm -f "$tmp"; fail 'unable to update .harbor/.env'; }
+	' "$ENV_FILE" >"$tmp" || {
+		rm -f "$tmp"
+		fail 'unable to update .harbor/.env'
+	}
+	cat "$tmp" >"$ENV_FILE" || {
+		rm -f "$tmp"
+		fail 'unable to update .harbor/.env'
+	}
 	rm -f "$tmp"
 }
 
@@ -87,10 +93,13 @@ set_profile() {
 		[ -n "$profile" ] || continue
 		if [ "$action" = add ] && [ "$profile" = "$requested" ]; then found=1; fi
 		if [ "$action" = remove ] && [ "$profile" = "$requested" ]; then continue; fi
-		case " ${result[*]} " in *" $profile "*) ;; *) result+=("$profile");; esac
+		case " ${result[*]} " in *" $profile "*) ;; *) result+=("$profile") ;; esac
 	done < <(profile_list "$value")
 	[ "$action" = add ] && [ "$found" -eq 0 ] && result+=("$requested")
-	write_profiles "$(IFS=,; echo "${result[*]}")"
+	write_profiles "$(
+		IFS=,
+		echo "${result[*]}"
+	)"
 }
 
 services_command() {
@@ -104,12 +113,12 @@ services_command() {
 		echo 'Active profiles:'
 		profile_list "$(env_value HARBOR_PROFILES)" | sed 's/^/  /'
 		;;
-	add|remove)
+	add | remove)
 		[ "$#" -eq 1 ] || usage_error "services $action requires a service name"
 		service=$1
 		set_profile "$action" "$service"
 		;;
-*) fail 'usage: harbor services {list|add|remove}' ;;
+	*) fail 'usage: harbor services {list|add|remove}' ;;
 	esac
 }
 
@@ -131,7 +140,7 @@ build_service_compose_args() {
 		[ -f "$HARBOR_DIR/stubs/$service.yaml" ] && stub="$HARBOR_DIR/stubs/$service.yaml"
 		[ -n "$stub" ] || stub="$PACKAGE_ROOT/resources/stubs/$service.yaml"
 		[ -f "$stub" ] || fail "missing service stub: $stub"
-		COMPOSE_ARGS+=( -f "$stub" )
+		COMPOSE_ARGS+=(-f "$stub")
 	done
 }
 
@@ -152,7 +161,7 @@ build_compose_args() {
 		[ -f "$HARBOR_DIR/stubs/$profile.yaml" ] && stub="$HARBOR_DIR/stubs/$profile.yaml"
 		[ -n "$stub" ] || stub="$PACKAGE_ROOT/resources/stubs/$profile.yaml"
 		[ -f "$stub" ] || fail "missing service stub: $stub"
-		COMPOSE_ARGS+=( -f "$stub" )
+		COMPOSE_ARGS+=(-f "$stub")
 	done
 
 	profiles=()
@@ -174,7 +183,7 @@ build_compose_args() {
 	if [ -n "$profiles_value" ]; then
 		for profile in "${profiles[@]}"; do
 			[ -n "$profile" ] || continue
-			COMPOSE_ARGS+=( --profile "$profile" )
+			COMPOSE_ARGS+=(--profile "$profile")
 		done
 	fi
 }
@@ -347,13 +356,13 @@ TTY_ARGS=()
 
 command=$1
 case "$command" in
-	up)
-		shift
-		compose up "$@"
+up)
+	shift
+	compose up "$@"
 	;;
-	stop | restart | ps | logs | build | config | start)
-		shift
-		compose "$command" "$@"
+stop | restart | ps | logs | build | config | start)
+	shift
+	compose "$command" "$@"
 	;;
 down)
 	shift
@@ -369,7 +378,7 @@ maho)
 	shift
 	app_exec php maho "$@"
 	;;
-	bin)
+bin)
 	shift
 	[ "$#" -gt 0 ] || usage_error 'bin requires a tool (example: ./vendor/bin/harbor bin phpunit)'
 	tool=$1
@@ -424,7 +433,7 @@ root-shell)
 		compose exec "${TTY_ARGS[@]}" -u root app bash -c "$*"
 	fi
 	;;
-	exec)
+exec)
 	shift
 	service=app
 	user_args=()
