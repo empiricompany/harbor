@@ -30,6 +30,7 @@ services:
       - "${HARBOR_APP_PORT:-8443}:${HARBOR_APP_PORT:-8443}"
     volumes:
       - ../:/app
+      - ../vendor/empiricompany/harbor/resources/mysql/client.cnf:/etc/mysql/conf.d/client.cnf:ro
     labels:
       ofelia.enabled: "true"
       ofelia.job-exec.maho-cron-always.schedule: '@every 1m'
