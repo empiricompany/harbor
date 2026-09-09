@@ -68,6 +68,10 @@ write_profiles() {
 			if (!replaced) { print "HARBOR_PROFILES=" value; replaced = 1 }
 			next
 		}
+		/^[[:space:]]*#[[:space:]]*HARBOR_PROFILES=/ {
+			if (!replaced) { print "HARBOR_PROFILES=" value; replaced = 1 }
+			next
+		}
 		{ print }
 		END { if (!replaced) print "HARBOR_PROFILES=" value }
 	' "$ENV_FILE" >"$tmp" || { rm -f "$tmp"; fail 'unable to update .harbor/.env'; }
@@ -120,8 +124,19 @@ compose_command() {
 	fi
 }
 
+build_service_compose_args() {
+	local service stub
+	for service in app db mailpit cron; do
+		stub=""
+		[ -f "$HARBOR_DIR/stubs/$service.yaml" ] && stub="$HARBOR_DIR/stubs/$service.yaml"
+		[ -n "$stub" ] || stub="$PACKAGE_ROOT/resources/stubs/$service.yaml"
+		[ -f "$stub" ] || fail "missing service stub: $stub"
+		COMPOSE_ARGS+=( -f "$stub" )
+	done
+}
+
 build_compose_args() {
-	local project_name profiles_value
+	local project_name profiles_value profile stub
 	project_name=${HARBOR_PROJECT_NAME:-$(env_value HARBOR_PROJECT_NAME)}
 	project_name=${project_name:-harbor}
 	profiles_value=${HARBOR_PROFILES:-$(env_value HARBOR_PROFILES)}
@@ -130,11 +145,23 @@ build_compose_args() {
 		-p "$project_name"
 		-f .harbor/compose.yaml
 	)
-	# Older/empty manifests were produced before the base services became part
-	# of the scaffold. Overlay the canonical base definition without rewriting
-	# the user's manifest; custom services in the normal override files remain.
-	if grep -Eq '^services:[[:space:]]*\{[[:space:]]*\}[[:space:]]*$' "$COMPOSE_FILE"; then
-		COMPOSE_ARGS+=( -f "$PACKAGE_ROOT/resources/stubs/compose.stub" )
+	build_service_compose_args
+
+	for profile in redis adminer phpmyadmin; do
+		stub=""
+		[ -f "$HARBOR_DIR/stubs/$profile.yaml" ] && stub="$HARBOR_DIR/stubs/$profile.yaml"
+		[ -n "$stub" ] || stub="$PACKAGE_ROOT/resources/stubs/$profile.yaml"
+		[ -f "$stub" ] || fail "missing service stub: $stub"
+		COMPOSE_ARGS+=( -f "$stub" )
+	done
+
+	profiles=()
+	if [ -n "$profiles_value" ]; then
+		IFS=',' read -r -a profiles <<<"$profiles_value"
+		for profile in "${profiles[@]}"; do
+			[ -n "$profile" ] || continue
+			profile_is_available "$profile" || fail "unknown active profile '$profile'"
+		done
 	fi
 
 	[ -f "$HARBOR_DIR/docker.override.yaml" ] && COMPOSE_ARGS+=(
@@ -145,10 +172,9 @@ build_compose_args() {
 	)
 
 	if [ -n "$profiles_value" ]; then
-		local profile
-		IFS=',' read -r -a profiles <<<"$profiles_value"
 		for profile in "${profiles[@]}"; do
-			[ -n "$profile" ] && COMPOSE_ARGS+=(--profile "$profile")
+			[ -n "$profile" ] || continue
+			COMPOSE_ARGS+=( --profile "$profile" )
 		done
 	fi
 }
@@ -175,15 +201,23 @@ init_project() {
 	[ "${1:-}" = --force ] || [ "${1:-}" = -f ] && force=1
 	[ "$#" -le 1 ] || usage_error 'usage: harbor init [--force]'
 	mkdir -p "$HARBOR_DIR"
-	[ -e "$HARBOR_DIR/.env.example" ] || cp "$PACKAGE_ROOT/resources/env.example" "$HARBOR_DIR/.env.example"
-	[ -e "$ENV_FILE" ] || cp "$PACKAGE_ROOT/resources/env.example" "$ENV_FILE"
-	[ -e "$HARBOR_DIR/.gitignore" ] || cp "$PACKAGE_ROOT/resources/harbor.gitignore" "$HARBOR_DIR/.gitignore"
-	[ -e "$HARBOR_DIR/docker.override.yaml" ] || printf 'services: {}\n' >"$HARBOR_DIR/docker.override.yaml"
-	[ -e "$HARBOR_DIR/docker.install.yaml" ] || printf 'services: {}\n' >"$HARBOR_DIR/docker.install.yaml"
-	if [ ! -e "$COMPOSE_FILE" ] || [ "$force" -eq 1 ]; then
+	if [ "$force" -eq 1 ]; then
+		cp "$PACKAGE_ROOT/resources/env.example" "$HARBOR_DIR/.env.example"
+		cp "$PACKAGE_ROOT/resources/env.example" "$ENV_FILE"
+		cp "$PACKAGE_ROOT/resources/harbor.gitignore" "$HARBOR_DIR/.gitignore"
+		printf 'services: {}\n' >"$HARBOR_DIR/docker.override.yaml"
+		printf 'services: {}\n' >"$HARBOR_DIR/docker.install.yaml"
 		cp "$PACKAGE_ROOT/resources/stubs/compose.stub" "$COMPOSE_FILE"
 	else
-		fail "$COMPOSE_FILE already exists (use --force to replace it)"
+		[ -e "$HARBOR_DIR/.env.example" ] || cp "$PACKAGE_ROOT/resources/env.example" "$HARBOR_DIR/.env.example"
+		[ -e "$ENV_FILE" ] || cp "$PACKAGE_ROOT/resources/env.example" "$ENV_FILE"
+		[ -e "$HARBOR_DIR/.gitignore" ] || cp "$PACKAGE_ROOT/resources/harbor.gitignore" "$HARBOR_DIR/.gitignore"
+		[ -e "$HARBOR_DIR/docker.override.yaml" ] || printf 'services: {}\n' >"$HARBOR_DIR/docker.override.yaml"
+		[ -e "$HARBOR_DIR/docker.install.yaml" ] || printf 'services: {}\n' >"$HARBOR_DIR/docker.install.yaml"
+		if [ -e "$COMPOSE_FILE" ]; then
+			fail "$COMPOSE_FILE already exists (use --force to replace it)"
+		fi
+		cp "$PACKAGE_ROOT/resources/stubs/compose.stub" "$COMPOSE_FILE"
 	fi
 }
 

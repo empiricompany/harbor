@@ -1,414 +1,228 @@
-# Harbor
+# Harbor local development
 
-> **Beta:** this project is actively under development. Behavior and APIs may change at any time; it is not recommended for production use.
+> **Beta:** Harbor is for local development only. It is actively developed and must not be used for production deployments. Commands, generated files, and defaults may change without notice.
 
-Harbor is a Docker-based local development environment for Maho Commerce.
-It provides a small Bash CLI around Docker Compose and convenient commands for
-the Maho containers.
+Harbor is the Docker Compose launcher and local development stack for Maho projects. Run all commands from the Maho project root.
 
-Harbor is for local development only. It is not a production deployment or
-hardening solution.
+## Install Harbor and set up a first Maho project
 
-## Requirements
+Harbor and Maho are separate concerns:
 
-- Docker with the Compose plugin;
-- a Maho project checkout;
-- Composer only to install or update the package.
+1. A Maho project must exist first. Installing Harbor does not create a Maho project and Harbor has no project-creation command.
+2. Add Harbor to an existing project as a Composer development dependency:
 
-All commands must be run from the Maho project root.
+   ```bash
+   composer require --dev empiricompany/harbor
+   ```
 
-## Install and start
+3. Install the project dependencies. For an already configured project, use the Harbor wrapper so Composer runs in the application container:
+
+   ```bash
+   ./vendor/bin/harbor composer install
+   ```
+
+4. Generate Harbor's project files and review [`.harbor/.env`](../../.harbor/.env):
+
+   ```bash
+   ./vendor/bin/harbor init
+   ```
+
+5. Configure Maho itself using the installer documented by the Maho project. Harbor does not create [`app/etc/local.xml`](../../app/etc/local.xml) or replace the Maho installer. Database defaults exposed to the containers are `db:3306`, database `maho`, user `maho`, and password `maho`; make sure the Maho installation uses the values appropriate for the project.
+6. Start the stack and check it:
+
+   ```bash
+   ./vendor/bin/harbor up -d
+   ./vendor/bin/harbor ps
+   ```
+
+Use `./vendor/bin/harbor up -d --build` when the application image must be built. `init` creates `.harbor/` files only when they are absent; `init --force` replaces generated environment and Compose files and can overwrite local settings.
+
+## Quick start and base stack
+
+The default stack contains:
+
+- `app`: Maho, PHP, the web server, and application tools;
+- `db`: MySQL;
+- `mailpit`: local SMTP capture and web inbox;
+- `cron`: Ofelia, the scheduled-task service.
+
+The application URL is controlled by `HARBOR_APP_URL` and defaults to `https://localhost:8443/`. The base Mailpit UI defaults to `http://localhost:8025`; applications send SMTP to `mailpit:1025` inside the Compose network.
+
+Project files are generated in [`.harbor/`](../../.harbor/). Do not edit [`.harbor/compose.yaml`](../../.harbor/compose.yaml) for normal customization; use [`.harbor/docker.override.yaml`](../../.harbor/docker.override.yaml) or [`.harbor/docker.install.yaml`](../../.harbor/docker.install.yaml).
+
+## Main commands
+
+These examples match [`localdev/harbor/bin/harbor`](bin/harbor).
+
+### Lifecycle
 
 ```bash
-composer require --dev empiricompany/harbor
-./vendor/bin/harbor init
-./vendor/bin/harbor up -d
+./vendor/bin/harbor init [--force]
+./vendor/bin/harbor up -d [service...]
+./vendor/bin/harbor down
+./vendor/bin/harbor stop [service...]
+./vendor/bin/harbor restart [service...]
+./vendor/bin/harbor ps [service...]
+./vendor/bin/harbor logs [service]
+./vendor/bin/harbor logs -f app
+./vendor/bin/harbor build [service...]
+./vendor/bin/harbor config
 ./vendor/bin/harbor doctor
 ```
 
-Harbor is a local-development tool, so `--dev` keeps it out of production
-installations.
+`down` removes containers and networks and includes disabled profile services as orphans.  
+`down -v` also removes persistent volumes, including the database volume.
 
-After installing the package, regenerate Composer's autoload files so Maho can
-discover the package's database commands: `db:export` and `db:import`.
-Harbor service management is Bash-only and is not registered in the Maho CLI.
-
-The two database commands read the configured connection from `app/etc/local.xml`
-and invoke `mysqldump`/`mysql` against the configured Docker database service.
-They do not run the database on the host; run them through the app container with
-`./vendor/bin/harbor maho ...`.
-
-`init` is a Bash-only bootstrap: the operational manifest is
-`.harbor/compose.yaml`. When missing, `init` creates the following files in
-`.harbor`:
-
-- `.env.example`, copied from `resources/env.example`;
-- `.env`, copied from `resources/env.example`;
-- `.gitignore`, copied from `resources/harbor.gitignore`;
-- `docker.override.yaml` containing `services: {}`;
-- `docker.install.yaml` containing `services: {}`;
-- `compose.yaml`, copied from the current `resources/stubs/compose.stub`.
-
-It does not invoke PHP or Maho. If `.harbor/compose.yaml` already exists,
-`init` without `--force` exits with an error and does not overwrite it. Use
-`init --force` only after reviewing any customizations: it replaces the
-manifest with the current stub. Review `.harbor/.env` before starting the
-stack. Do not commit `.harbor/.env`.
-
-The `compose.stub` already contains the base services `app`, `db`, `mailpit`,
-and `cron`, plus the optional Compose-profile services `redis`, `adminer`, and
-`phpmyadmin`. Service changes only update `HARBOR_PROFILES` in `.harbor/.env`;
-they never modify `.harbor/compose.yaml`, start or stop containers, create
-`.harbor/services.list`, or change `app/etc/local.xml`:
-
-```bash
-./vendor/bin/harbor services list
-./vendor/bin/harbor services add redis
-./vendor/bin/harbor services remove redis
-```
-
-`services list` shows the available profiles and active profiles. After adding
-or removing a profile, run `up -d` to apply the change; `services add/remove`
-does not perform that lifecycle operation. The generated manifest remains
-`.harbor/compose.yaml`.
-
-### Verified profile workflow
-
-This is the complete verified workflow for enabling Redis:
-
-```bash
-./vendor/bin/harbor init --force
-./vendor/bin/harbor services add redis
-./vendor/bin/harbor services list
-./vendor/bin/harbor down
-./vendor/bin/harbor up -d
-./vendor/bin/harbor ps
-```
-
-After `services add redis`, `up -d` is required before `ps`; Redis must then
-appear among the active services. To disable it, run:
-
-```bash
-./vendor/bin/harbor services remove redis
-./vendor/bin/harbor down
-./vendor/bin/harbor up -d
-./vendor/bin/harbor ps
-```
-
-When `up -d` is used without explicit service names, Compose selects the base
-services and any services whose profiles are active through `HARBOR_PROFILES`.
-
-The first application image build may take several minutes:
-
-```bash
-./vendor/bin/harbor up -d --build
-```
-
-## Daily commands
-
-### Stack lifecycle
-
-```bash
-./vendor/bin/harbor up -d
-./vendor/bin/harbor up -d --build
-./vendor/bin/harbor ps
-./vendor/bin/harbor logs
-./vendor/bin/harbor logs cron
-./vendor/bin/harbor logs -f app
-./vendor/bin/harbor stop
-./vendor/bin/harbor restart
-./vendor/bin/harbor down
-```
-
-`down` removes containers and the network but keeps volumes. To remove volumes
-as well, use:
-
-```bash
-./vendor/bin/harbor down -v
-```
-
-**Warning:** this permanently removes local database data. Harbor asks for
-confirmation and refuses this operation in non-interactive mode.
-
-### Commands in the app container
+### Application tools
 
 ```bash
 ./vendor/bin/harbor php --version
 ./vendor/bin/harbor composer install
 ./vendor/bin/harbor maho cache:flush
 ./vendor/bin/harbor bin phpunit
-./vendor/bin/harbor mysql --execute='SELECT 1'
-./vendor/bin/harbor redis --raw ping
+./vendor/bin/harbor test
+./vendor/bin/harbor phpunit
+./vendor/bin/harbor phpstan
 ```
 
-### Shell access
+`php`, `composer`, `maho`, and `bin` execute in `app`. Unknown commands are delegated to Docker Compose.
+
+### Shell and service tools
 
 ```bash
 ./vendor/bin/harbor shell
 ./vendor/bin/harbor shell --service db
 ./vendor/bin/harbor root-shell
-```
-
-`shell` opens Bash in `app` by default. Use `--service` or `-s` to select a
-different running service. `root-shell` opens Bash as root in `app`.
-
-### Generic container commands
-
-Use `exec` when no dedicated wrapper exists:
-
-```bash
 ./vendor/bin/harbor exec --service app php -v
-./vendor/bin/harbor exec --service app --user root bash
-./vendor/bin/harbor exec --service app --no-tty php script.php
-```
-
-Options before the command:
-
-- `--service`/`-s` selects the Compose service;
-- `--user`/`-u` selects the container user;
-- `--no-tty` disables TTY allocation.
-
-## Compose customization
-
-Harbor keeps the generated base configuration in `.harbor/compose.yaml` and
-loads these optional project-owned layers in order:
-
-```text
-.harbor/compose.yaml
-.harbor/docker.override.yaml
-.harbor/docker.install.yaml
-```
-
-Do not edit the generated base file. Put local or persistent customizations in
-`.harbor/docker.override.yaml`; use `.harbor/docker.install.yaml` for services
-or settings needed during installation. Both files are optional and can be
-created manually.
-
-Example: enable Xdebug and add a Node service:
-
-```yaml
-services:
-  app:
-    environment:
-      XDEBUG_MODE: develop,debug
-    extra_hosts:
-      - host.docker.internal:host-gateway
-
-  node:
-    image: node:22
-    working_dir: /app
-    volumes:
-       - .:/app
-    networks:
-      - harbor
-```
-
-Start the service and use it with `exec`:
-
-```bash
-./vendor/bin/harbor up -d
-./vendor/bin/harbor exec --service node node --version
+./vendor/bin/harbor exec --user root --service app bash
+./vendor/bin/harbor mysql --execute='SELECT 1'
+./vendor/bin/harbor redis --raw ping
+./vendor/bin/harbor open
+./vendor/bin/harbor open admin
+./vendor/bin/harbor open mailpit
 ```
 
 ## Xdebug
 
-Xdebug is included in the default app image. Configure your IDE to listen for
-PHP debug connections on port `9003`, then enable the debug environment in
-`.harbor/docker.override.yaml`:
-
-```yaml
-services:
-  app:
-    environment:
-      XDEBUG_MODE: develop,debug
-      XDEBUG_CONFIG: client_host=host.docker.internal client_port=9003
-    extra_hosts:
-      - host.docker.internal:host-gateway
-```
-
-The `XDEBUG_CONFIG` value makes the app container connect back to the host IDE.
-Rebuild the app image after adding or changing this configuration:
+Xdebug is included in the application image: the package Dockerfile installs it together with the core PHP extensions.  
+Verify it from the running `app` container:
 
 ```bash
-./vendor/bin/harbor up -d --build
-./vendor/bin/harbor debug -r 'echo "debug\n";'
+./vendor/bin/harbor php -m | grep -i '^xdebug$'
+./vendor/bin/harbor php -r 'var_dump(extension_loaded("xdebug"));'
 ```
 
-Use `harbor debug` for requests that should start an Xdebug session. It enables
-`xdebug.start_with_request=yes` for that PHP invocation; regular `php` and
-`maho` commands do not force a debug session.
-
-Inspect the Compose layers with:
+Use the Harbor debug wrapper for a PHP command or script:
 
 ```bash
-./vendor/bin/harbor config
+./vendor/bin/harbor debug script.php
+./vendor/bin/harbor debug -r 'var_dump(extension_loaded("xdebug"));'
 ```
 
-**Keep secrets in `.harbor/.env` or environment variables, not in committed
-override files.**
+When Xdebug is installed, `debug` adds `-d xdebug.start_with_request=yes`. If it is unavailable, Harbor prints a warning and runs PHP without Xdebug. The package does not declare Xdebug-specific variables in [`.harbor/.env.example`](../../.harbor/.env.example), and [`resources/php/php.ini`](resources/php/php.ini) contains no Xdebug settings. Do not assume IDE path mappings, client-host settings, or a host debugging port are configured automatically.
 
-### Maho developer mode
+## Additional cron jobs
 
-The project override enables Maho developer mode for the `app` service:
+The base `cron` service runs Ofelia. It watches Docker labels for the current Compose project through the read-only Docker socket. The `app` stub defines these Maho jobs:
 
-```yaml
-services:
-  app:
-    environment:
-      MAGE_IS_DEVELOPER_MODE: '1'
-```
+- `ofelia.job-exec.maho-cron-always`: every minute, runs `./maho cron:run always`;
+- `ofelia.job-exec.maho-cron-default`: every five minutes, runs `./maho cron:run default`.
 
-After changing the override, recreate the application service so the
-environment is applied:
+Both jobs run as user `maho` and set `no-overlap: "true"`. Start the service explicitly with:
 
 ```bash
-./vendor/bin/harbor up -d --force-recreate app
+./vendor/bin/harbor cron
 ```
 
-To disable developer mode while preserving the generated base configuration,
-restore the empty override and recreate `app`:
-
-```bash
-printf 'services: {}\n' > .harbor/docker.override.yaml
-./vendor/bin/harbor up -d --force-recreate app
-```
-
-In this repository `.harbor/.gitignore` explicitly keeps
-`.harbor/docker.override.yaml` under version control, so this developer-mode
-override is project-owned rather than a personal uncommitted override. If a
-local-only variant is needed in another project, keep that file ignored and do
-not commit it.
-
-Verify the merged configuration and the container environment with:
-
-```bash
-./vendor/bin/harbor config
-./vendor/bin/harbor exec --service app printenv MAGE_IS_DEVELOPER_MODE
-```
-
-## Scheduled Maho jobs
-
-The stack runs the built-in Maho cron groups through Ofelia:
-
-- `always`: every minute;
-- `default`: every five minutes.
-
-Add custom jobs to the `app` service in `.harbor/docker.override.yaml`:
+Custom jobs are supported through Compose labels in [`.harbor/docker.override.yaml`](../../.harbor/docker.override.yaml). Add labels to `app` (or another service) using Ofelia's `ofelia.job-exec.<job-name>.*` format, for example:
 
 ```yaml
 services:
   app:
     labels:
-      ofelia.job-exec.catalog-reindex.schedule: "@every 10m"
-      ofelia.job-exec.catalog-reindex.command: "sh -c 'cd /app && ./maho indexer:reindex catalog_product_flat'"
-      ofelia.job-exec.catalog-reindex.user: maho
-      ofelia.job-exec.catalog-reindex.no-overlap: "true"
+      ofelia.job-exec.custom.schedule: '@every 10m'
+      ofelia.job-exec.custom.command: "sh -c 'cd /app && ./maho your:command'"
+      ofelia.job-exec.custom.user: maho
+      ofelia.job-exec.custom.no-overlap: "true"
 ```
 
-Use a unique job name, recreate the application container, and inspect the
-cron logs:
+Recreate the service after changing labels with `./vendor/bin/harbor up -d` and inspect it with `./vendor/bin/harbor logs cron`.
+## Optional services
 
-```bash
-./vendor/bin/harbor up -d
-./vendor/bin/harbor logs cron
-```
-
-## Maho installation
-
-Harbor does not create or modify `app/etc/local.xml`. The Maho installer owns
-that file.
-
-For the web installer, open:
-
-```text
-https://localhost:8443/
-```
-
-Use these internal database values:
-
-| Setting | Value |
-| --- | --- |
-| Database host | `db` |
-| Database port | `3306` |
-| Database name | value from `.harbor/.env` |
-| Database user | value from `.harbor/.env` |
-| Database password | value from `.harbor/.env` |
-| Database engine | `mysql` |
-| HTTPS URL | `https://localhost:8443/` |
-
-For the CLI installer, run the Maho command in the app container:
-
-```bash
-./vendor/bin/harbor maho install \
-  --license_agreement_accepted yes \
-  --db_host db --db_name maho --db_user maho \
-  --db_pass '<database password>' --db_engine mysql \
-  --url https://localhost:8443/ --use_secure 1 \
-  --secure_base_url https://localhost:8443/ \
-  --admin_firstname Admin --admin_lastname User \
-  --admin_email admin@example.test --admin_username admin \
-  --admin_password '<admin password>'
-```
-
-## Database backup and restore
-
-Export with the Maho database command:
-
-```bash
-./vendor/bin/harbor maho db:export var/backups/backup.sql.gz --compression=gzip
-```
-
-Restore a backup only when you intend to replace the local database:
-
-```bash
-./vendor/bin/harbor down -v
-./vendor/bin/harbor up -d
-./vendor/bin/harbor maho db:import \
-  /app/var/backups/backup.sql.gz \
-  --compression=gzip --drop-tables
-```
-
-**Warning:** the `down -v` step permanently deletes the current database volume.
-
-## Optional services and URLs
-
-Mailpit is included by default:
-
-```text
-Web UI: http://localhost:8025
-SMTP:   mailpit:1025 from containers
-```
-
-Optional services are controlled through Compose profiles already defined in the
-stub. List available services and active profiles with:
+Base services and optional profile services are separate.  
+The available profiles are `redis`, `adminer`, and `phpmyadmin`.  
+Profiles are stored as a comma-separated `HARBOR_PROFILES` value in [`.harbor/.env`](../../.harbor/.env).
 
 ```bash
 ./vendor/bin/harbor services list
+./vendor/bin/harbor services add redis
+./vendor/bin/harbor services remove redis
+./vendor/bin/harbor up -d
+./vendor/bin/harbor ps
 ```
 
-Enable or disable profiles with Bash; these commands preserve every other
-`.harbor/.env` variable:
+`services add` and `services remove` update `.harbor/.env`; they do not start or stop containers.  
+Run `up -d` to apply a profile change and `ps` to verify it.
 
-```dotenv
-HARBOR_PROFILES=redis,adminer
+### Redis (optional profile: `redis`)
+
+- Internal hostname and port: `redis:6379`.
+- The service uses a  temporary `/data` storage with `volatile-lfu` eviction.
+- The environment example defines `HARBOR_REDIS_HOST=redis`, `HARBOR_REDIS_PORT=6379`, `HARBOR_REDIS_SESSION_DB=1`, and `HARBOR_REDIS_CACHE_DB=2`.
+- No host port is published by the Redis stub. Use `redis:6379` from containers or `./vendor/bin/harbor redis ...`.
+
+### Mailpit (base service)
+
+- Web UI: `http://localhost:${HARBOR_MAILPIT_PORT:-8025}`; default `http://localhost:8025`.
+- SMTP from the host: `localhost:${HARBOR_MAILPIT_SMTP_PORT:-1025}`; default `localhost:1025`.
+- SMTP from containers: `mailpit:1025`.
+- `HARBOR_MAILPIT_PORT` and `HARBOR_MAILPIT_SMTP_PORT` can change the published host ports. Mailpit is always part of the base stack.
+
+### Adminer (optional profile: `adminer`)
+
+- Web endpoint: `http://localhost:${HARBOR_ADMINER_PORT:-8082}`; default `http://localhost:8082`.
+- Its default database server is `db` (`ADMINER_DEFAULT_SERVER=db`).
+- Use the credentials from [`.harbor/.env`](../../.harbor/.env).
+
+### phpMyAdmin (optional profile: `phpmyadmin`)
+
+- Web endpoint: `http://localhost:${HARBOR_PHPMYADMIN_PORT:-8081}`; default `http://localhost:8081`.
+- Its configured database host and port are `db:3306` (`PMA_HOST=db`, `PMA_PORT=3306`).
+- `HARBOR_PHPMYADMIN_PORT` changes the published host port.
+
+## Dev Containers
+
+Generate the Dev Container file with:
+
+```bash
+./vendor/bin/harbor devcontainer --force
 ```
 
-For example, `./vendor/bin/harbor services add redis` and
-`./vendor/bin/harbor services remove redis` update only that line. No change is
-made to `app/etc/local.xml`.
+This writes [`.devcontainer/devcontainer.json`](../../.devcontainer/devcontainer.json).  
+The generated configuration points to [`../.harbor/compose.yaml`](../../.harbor/compose.yaml), opens the `app` service, and uses `/app` as the workspace folder.
 
-Adminer and phpMyAdmin use the default local URLs when enabled:
+Open the project in VS Code with the Microsoft Dev Containers extension, then choose **Dev Containers: Reopen in Container**. 
 
-```text
-Adminer:    http://localhost:8082
-phpMyAdmin: http://localhost:8081
+Harbor does not install VS Code extensions or Dev Containers tooling.
+
+### VS Code PHP integration
+
+For the Maho VS Code extension, configure PHP to run through Harbor from the
+repository root. 
+
+Add this setting to `.vscode/settings.json`:
+
+```json
+{
+  "maho.phpCommand": "./vendor/bin/harbor php"
+}
 ```
 
 ## MCP server
 
-Harbor can run the Maho MCP server over stdio for compatible AI clients. Start the
-application stack first, then configure the client to execute Harbor from the
-repository root:
+Harbor can run the Maho MCP server over stdio for compatible AI clients. 
+
+Start the application stack first, then configure the client to execute Harbor from the repository root:
 
 ```json
 {
@@ -421,59 +235,34 @@ repository root:
 }
 ```
 
-## Diagnostics and convenience commands
+## Customization and generated files
+
+- [`.harbor/docker.override.yaml`](../../.harbor/docker.override.yaml) is for persistent project or local Compose overrides.
+- [`.harbor/docker.install.yaml`](../../.harbor/docker.install.yaml) is for install-specific additions and settings.
+- [`.harbor/stubs/<service>.yaml`](../../.harbor/stubs/) overrides a matching package stub when present.
+- `HARBOR_PHP_EXTENSIONS` in [`.harbor/.env`](../../.harbor/.env) adds PHP extensions; rebuild with `./vendor/bin/harbor up -d --build`.
+
+Keep secrets out of versioned override files. `init --force` can replace generated environment and Compose files.
+
+Harbor does not update Maho's [local.xml](../../app/etc/local.xml) automatically.
+
+## Troubleshooting
 
 ```bash
-./vendor/bin/harbor doctor
 ./vendor/bin/harbor config
-./vendor/bin/harbor open
-./vendor/bin/harbor open admin
-./vendor/bin/harbor open mailpit
+./vendor/bin/harbor doctor
+./vendor/bin/harbor ps
+./vendor/bin/harbor logs app
+./vendor/bin/harbor logs cron
 ```
 
-`doctor` checks Docker, Compose, configuration, and running services. `config`
-renders the merged Compose configuration. `open` accepts `app`, `admin`, or
-`mailpit` and defaults to `app`.
+Run the launcher from the directory containing `vendor/`, `.harbor/`, and the Maho project files. Harbor requires Docker and Docker Compose; this README does not replace their installation documentation.
 
-## Dev Containers
+## Package tests
 
-### VS Code PHP integration
-
-For the Maho VS Code extension, configure PHP to run through Harbor from the
-repository root. Add this setting to `.vscode/settings.json`:
-
-```json
-{
-  "maho.phpCommand": "./vendor/bin/harbor php"
-}
-```
-
-Make sure the Harbor application stack is running before using PHP features in
-VS Code:
+From the Harbor package directory, the shell test suite can run without starting containers:
 
 ```bash
-./vendor/bin/harbor up -d
+cd localdev/harbor
+bash tests/harbor.sh
 ```
-
-With VS Code and the Dev Containers extension installed:
-
-```bash
-./vendor/bin/harbor up -d
-./vendor/bin/harbor devcontainer
-```
-
-Reopen the project in the generated container. Use `--force` to replace an
-existing configuration:
-
-```bash
-./vendor/bin/harbor devcontainer --force
-```
-
-## Contributing
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development workflow and
-quality checks.
-
-## License
-
-Harbor is released under the MIT License. See [`LICENSE`](LICENSE).
