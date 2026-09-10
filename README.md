@@ -171,6 +171,10 @@ Run `up -d` to apply a profile change and `ps` to verify it.
 Configuration example:
 ```xml
 <session_save>redis</session_save>
+<redis_session>
+  <dsn>redis://redis:6379/1</dsn>
+  <key_prefix>maho_session:</key_prefix>
+</redis_session>
 <cache>
   <backend>redis</backend>
   <lifetime>86400</lifetime>
@@ -179,10 +183,6 @@ Configuration example:
     <eviction_policy>volatile-lfu</eviction_policy>
   </backend_options>
 </cache>
-<redis_session>
-  <dsn>redis://redis:6379/1</dsn>
-  <key_prefix>maho_session:</key_prefix>
-</redis_session>
 ```
 
 ### Mailpit (base service)
