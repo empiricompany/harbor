@@ -168,6 +168,23 @@ Run `up -d` to apply a profile change and `ps` to verify it.
 - The environment example defines `HARBOR_REDIS_HOST=redis`, `HARBOR_REDIS_PORT=6379`, `HARBOR_REDIS_SESSION_DB=1`, and `HARBOR_REDIS_CACHE_DB=2`.
 - No host port is published by the Redis stub. Use `redis:6379` from containers or `./vendor/bin/harbor redis ...`.
 
+Configuration example:
+```xml
+<session_save>redis</session_save>
+<cache>
+  <backend>redis</backend>
+  <lifetime>86400</lifetime>
+  <backend_options>
+    <dsn>redis://redis:6379/2</dsn>
+    <eviction_policy>volatile-lfu</eviction_policy>
+  </backend_options>
+</cache>
+<redis_session>
+  <dsn>redis://redis:6379/1</dsn>
+  <key_prefix>maho_session:</key_prefix>
+</redis_session>
+```
+
 ### Mailpit (base service)
 
 - Web UI: `http://localhost:${HARBOR_MAILPIT_PORT:-8025}`; default `http://localhost:8025`.
