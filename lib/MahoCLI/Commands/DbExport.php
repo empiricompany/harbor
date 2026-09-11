@@ -77,7 +77,7 @@ class DbExport extends BaseMahoCommand
         }
 
         $dumpBase = sprintf(
-            'mysqldump --single-transaction --quick -h %s -u%s -p%s %s',
+            'mysqldump --single-transaction --quick --no-tablespaces -h %s -u%s -p%s %s',
             escapeshellarg($host),
             escapeshellarg($user),
             escapeshellarg($password),

@@ -34,11 +34,11 @@ services:
     labels:
       ofelia.enabled: "true"
       ofelia.job-exec.maho-cron-always.schedule: '@every 1m'
-      ofelia.job-exec.maho-cron-always.command: "sh -c 'cd /app && ./maho cron:run always'"
+      ofelia.job-exec.maho-cron-always.command: "sh -c 'cd /app && php ./maho cron:run always'"
       ofelia.job-exec.maho-cron-always.user: maho
       ofelia.job-exec.maho-cron-always.no-overlap: "true"
       ofelia.job-exec.maho-cron-default.schedule: '@every 5m'
-      ofelia.job-exec.maho-cron-default.command: "sh -c 'cd /app && ./maho cron:run default'"
+      ofelia.job-exec.maho-cron-default.command: "sh -c 'cd /app && php ./maho cron:run default'"
       ofelia.job-exec.maho-cron-default.user: maho
       ofelia.job-exec.maho-cron-default.no-overlap: "true"
     networks:
