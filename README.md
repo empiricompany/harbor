@@ -147,7 +147,8 @@ Recreate the service after changing labels with `./vendor/bin/harbor up -d` and 
 ## Optional services
 
 Base services and optional profile services are separate.  
-The available profiles are `redis`, `adminer`, and `phpmyadmin`.  
+The built-in profiles are `redis`, `adminer`, and `phpmyadmin`.  
+Any profile declared by a service in `.harbor/docker.override.yaml` or `.harbor/docker.install.yaml` (inline `profiles: [newprofilename]` ) is discovered automatically and managed the same way.  
 Profiles are stored as a comma-separated `HARBOR_PROFILES` value in [`.harbor/.env`](../../.harbor/.env).
 
 ```bash

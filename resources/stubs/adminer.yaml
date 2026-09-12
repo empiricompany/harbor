@@ -1,9 +1,11 @@
 services:
   adminer:
-    image: adminer:4
+    image: adminer:latest
     profiles: [adminer]
     environment:
-      ADMINER_DEFAULT_SERVER: db
+      # The adminer image only supports ADMINER_DEFAULT_SERVER: the login
+      # server field is pre-filled, user/password/db must be entered manually.
+      ADMINER_DEFAULT_SERVER: "${HARBOR_DB_HOST}"
     ports:
       - "${HARBOR_ADMINER_PORT:-8082}:8080"
     networks:

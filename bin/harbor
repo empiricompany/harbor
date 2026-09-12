@@ -33,7 +33,30 @@ env_value() {
 	sed -n "s/^${key}=//p" "$ENV_FILE" | head -n1
 }
 
-AVAILABLE_PROFILES=(redis adminer phpmyadmin)
+BUILTIN_PROFILES=(redis adminer phpmyadmin)
+AVAILABLE_PROFILES=("${BUILTIN_PROFILES[@]}")
+
+# Profiles declared by services in the project-local Compose overrides
+# (.harbor/docker.override.yaml, .harbor/docker.install.yaml) are collected
+# here so `harbor services` can manage them like the built-in ones. The
+# inline form `profiles: [name, other]` is recognized (the same form used by
+# the packaged stubs and by docker.override.yaml).
+for _harbor_override in "$HARBOR_DIR/docker.override.yaml" "$HARBOR_DIR/docker.install.yaml"; do
+	[ -f "$_harbor_override" ] || continue
+	while IFS= read -r _harbor_profile; do
+		[ -n "$_harbor_profile" ] || continue
+		case " ${AVAILABLE_PROFILES[*]} " in
+		*" $_harbor_profile "*) ;;
+		*) AVAILABLE_PROFILES+=("$_harbor_profile") ;;
+		esac
+	done < <(
+		grep -E '^[[:space:]]*profiles:' "$_harbor_override" |
+			sed 's/^[[:space:]]*profiles:[[:space:]]*//; s/\[//g; s/\]//g; s/"//g' |
+			tr ',' '\n' |
+			sed 's/^[[:space:]]*-[[:space:]]*//; s/[[:space:]]//g'
+	)
+done
+unset _harbor_override _harbor_profile
 
 profile_is_available() {
 	local candidate=$1 profile

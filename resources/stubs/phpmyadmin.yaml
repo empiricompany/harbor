@@ -1,10 +1,12 @@
 services:
   phpmyadmin:
-    image: phpmyadmin:5.2
+    image: phpmyadmin:latest
     profiles: [phpmyadmin]
     environment:
-      PMA_HOST: db
-      PMA_PORT: 3306
+      PMA_HOST: "${HARBOR_DB_HOST}"
+      PMA_PORT: "${HARBOR_DB_PORT}"
+      PMA_USER: "${HARBOR_DB_USER}"
+      PMA_PASSWORD: "${HARBOR_DB_PASSWORD}"
     ports:
       - "${HARBOR_PHPMYADMIN_PORT:-8081}:80"
     networks:
