@@ -396,7 +396,7 @@ The generated configuration points to `../.harbor/compose.yaml`, opens the `app`
 
 Open the project in VS Code with the Microsoft Dev Containers extension. When VS Code detects the [`.devcontainer/devcontainer.json`](resources/devcontainer/devcontainer.json) file, it prompts you to reopen the project in the configured container.
 
-The generated configuration installs the Maho VS Code extension (`mahocommerce.maho`) automatically. Install the Microsoft Dev Containers extension locally to reopen the project in the container.
+The generated configuration installs the [Maho VS Code extension](https://marketplace.visualstudio.com/items?itemName=MahoCommerce.maho) (`mahocommerce.maho`) automatically. Install the Microsoft Dev Containers extension locally to reopen the project in the container.
 
 ### VS Code PHP integration
 
