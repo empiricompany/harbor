@@ -26,13 +26,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 )]
 class DbImport extends BaseMahoCommand
 {
+    use BinaryAvailabilityTrait;
     #[\Override]
     protected function configure(): void
     {
         $this
             ->addArgument('file', InputArgument::REQUIRED, 'Path to the SQL dump file')
             ->addOption('drop-tables', null, InputOption::VALUE_NONE, 'Drop all tables before importing')
-            ->addOption('compression', null, InputOption::VALUE_REQUIRED, 'Compression type: gzip or none', 'none');
+            ->addOption('compression', null, InputOption::VALUE_REQUIRED, 'Compression type: gzip, zstd, or none', 'none');
     }
 
     #[\Override]
@@ -92,11 +93,25 @@ class DbImport extends BaseMahoCommand
         $output->writeln("Importing <info>$file</info> into database <info>$dbname</info>...");
 
         $mysqlImport = sprintf('%s %s', $mysqlBase, escapeshellarg($dbname));
-        $compression = $input->getOption('compression');
+        $compression = (string) $input->getOption('compression');
+
+        if ($compression === 'zstd' && !$this->binaryExists('zstd')) {
+            $output->writeln('<error>zstd is required by --compression=zstd but is not installed on the server</error>');
+            return Command::FAILURE;
+        }
+
+        // `pv` is a soft dependency: when present it shows a bar on the
+        // compressed file bytes; otherwise we fall back to `cat`.
+        $hasPv  = $this->binaryExists('pv');
+        $size   = filesize($file);
+        $source = $hasPv ? sprintf('pv -s %d %s', $size, escapeshellarg($file)) : sprintf('cat %s', escapeshellarg($file));
 
         $importCmd = match ($compression) {
-            'gzip'  => sprintf('gunzip -c %s | %s', escapeshellarg($file), $mysqlImport),
-            default => sprintf('%s < %s', $mysqlImport, escapeshellarg($file)),
+            'gzip'  => sprintf('%s | gunzip -c | %s', $source, $mysqlImport),
+            'zstd'  => sprintf('%s | zstd -dc | %s', $source, $mysqlImport),
+            default => $hasPv
+                ? sprintf('%s | %s', $source, $mysqlImport)
+                : sprintf('%s < %s', $mysqlImport, escapeshellarg($file)),
         };
 
         passthru($importCmd, $exitCode);

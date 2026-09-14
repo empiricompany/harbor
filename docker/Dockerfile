@@ -18,7 +18,7 @@ RUN install -d /data /config \
     && chown -R maho:maho /data /config
 
 RUN set -eux; \
-    APT_PKGS="git patch unzip curl msmtp default-mysql-client postgresql-client sqlite3 libvips42 \
+    APT_PKGS="git patch unzip curl msmtp default-mysql-client postgresql-client sqlite3 libvips42 zstd pv \
         libasound2 libatk-bridge2.0-0 libatk1.0-0 libcairo2 libcups2 libdbus-1-3 \
         libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 \
         libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxdamage1 libxfixes3 \

@@ -26,12 +26,13 @@ use Symfony\Component\Console\Output\OutputInterface;
 )]
 class DbExport extends BaseMahoCommand
 {
+    use BinaryAvailabilityTrait;
     #[\Override]
     protected function configure(): void
     {
         $this
             ->addArgument('file', InputArgument::REQUIRED, 'Path to output dump file')
-            ->addOption('compression', null, InputOption::VALUE_REQUIRED, 'Compression type: gzip or none', 'gzip')
+            ->addOption('compression', null, InputOption::VALUE_REQUIRED, 'Compression type: gzip, zstd, or none', 'gzip')
             ->addOption('force', 'f', InputOption::VALUE_NONE, 'Overwrite output file if it already exists');
     }
 
@@ -60,8 +61,13 @@ class DbExport extends BaseMahoCommand
         $file = (string) $input->getArgument('file');
         $compression = (string) $input->getOption('compression');
 
-        if (!in_array($compression, ['gzip', 'none'], true)) {
-            $output->writeln('<error>Invalid compression. Allowed values: gzip, none</error>');
+        if (!in_array($compression, ['gzip', 'zstd', 'none'], true)) {
+            $output->writeln('<error>Invalid compression. Allowed values: gzip, zstd, none</error>');
+            return Command::FAILURE;
+        }
+
+        if ($compression === 'zstd' && !$this->binaryExists('zstd')) {
+            $output->writeln('<error>zstd is required by --compression=zstd but is not installed on the server</error>');
             return Command::FAILURE;
         }
 
@@ -86,9 +92,22 @@ class DbExport extends BaseMahoCommand
 
         $sedFilter = 'LANG=C LC_CTYPE=C LC_ALL=C sed -e ' . escapeshellarg('s/DEFINER[ ]*=[ ]*[^*]*\*/\*/');
 
+        // Estimate the raw dump size to drive the progress bar. `pv` is a
+        // soft dependency: if it is missing we proceed without a bar.
+        $sizeQuery = sprintf(
+            'mysql -N -h %s -u%s -p%s -e %s',
+            escapeshellarg($host),
+            escapeshellarg($user),
+            escapeshellarg($password),
+            escapeshellarg("SELECT COALESCE(SUM(data_length+index_length),0) FROM information_schema.tables WHERE table_schema='$dbname'"),
+        );
+        $size = (int) trim((string) shell_exec($sizeQuery));
+        $pv = $this->binaryExists('pv') ? sprintf('pv -s %d | ', $size) : '';
+
         $command = match ($compression) {
-            'gzip' => sprintf('%s | %s | gzip -c > %s', $dumpBase, $sedFilter, escapeshellarg($file)),
-            default => sprintf('%s | %s > %s', $dumpBase, $sedFilter, escapeshellarg($file)),
+            'gzip' => sprintf('%s | %s | %sgzip -c > %s', $dumpBase, $sedFilter, $pv, escapeshellarg($file)),
+            'zstd' => sprintf('%s | %s | %szstd -q -c > %s', $dumpBase, $sedFilter, $pv, escapeshellarg($file)),
+            default => sprintf('%s | %s | %s> %s', $dumpBase, $sedFilter, $pv, escapeshellarg($file)),
         };
 
         $output->writeln("Exporting database <info>$dbname</info> to <info>$file</info>...");

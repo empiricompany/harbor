@@ -124,13 +124,13 @@ If you already have a database dump, Harbor provides two additional commands to 
 
 ```bash
 # Import a dump into the database
-./vendor/bin/harbor maho db:import <file> [--compression=gzip|none] [--drop-tables]
+./vendor/bin/harbor maho db:import <file> [--compression=gzip|zstd|none] [--drop-tables]
 
 # Export the current database to a dump file
-./vendor/bin/harbor maho db:export <file> [--compression=gzip|none]
+./vendor/bin/harbor maho db:export <file> [--compression=gzip|zstd|none]
 ```
 
-Compression is not auto-detected: a gzip dump (even with a plain `.sql` name) needs `--compression=gzip`. Use `--drop-tables` to drop and recreate the database before importing, for a clean restore.
+Compression is not auto-detected: a gzip or zstd dump (even with a plain `.sql` name) needs `--compression=gzip` or `--compression=zstd`. Use `--drop-tables` to drop and recreate the database before importing, for a clean restore. When `pv` is available in the container, both commands show a progress bar; `zstd` is required only when `--compression=zstd` is requested.
 
 Harbor does not create [`app/etc/local.xml`](../../app/etc/local.xml) or replace the Maho installer. Database defaults exposed to the containers are `db:3306`, database `maho`, user `maho`, and password `maho`; make sure the Maho installation uses the values appropriate for the project.
 
