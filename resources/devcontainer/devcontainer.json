@@ -3,5 +3,13 @@
   "dockerComposeFile": ["../.harbor/compose.yaml"],
   "service": "app",
   "workspaceFolder": "/app",
-  "shutdownAction": "stopCompose"
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "mahocommerce.maho",
+        "xdebug.php-debug"
+      ]
+    }
+  }
 }
