@@ -301,10 +301,10 @@ services:
 
 ## Additional cron jobs
 
-The base `cron` service runs Ofelia. It watches Docker labels for the current Compose project through the read-only Docker socket. The `app` stub defines these Maho jobs:
+The base `cron` service runs Ofelia. It watches Docker labels for the current Compose project through the read-only Docker socket. The [`app` stub](resources/stubs/app.yaml#L36) defines these Maho jobs:
 
-- `ofelia.job-exec.maho-cron-always`: every minute, runs `./maho cron:run always`;
-- `ofelia.job-exec.maho-cron-default`: every five minutes, runs `./maho cron:run default`.
+- [`ofelia.job-exec.maho-cron-always`](resources/stubs/app.yaml#L38-L41): every minute, runs `./maho cron:run always`;
+- [`ofelia.job-exec.maho-cron-default`](resources/stubs/app.yaml#L42-L45): every five minutes, runs `./maho cron:run default`.
 
 Both jobs run as user `maho` and set `no-overlap: "true"`. Start the service explicitly with:
 
