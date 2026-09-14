@@ -50,7 +50,7 @@ composer require --dev empiricompany/harbor
 
 > **Tip:** Harbor is under active development and changes frequently. To always use the latest changes, install the `dev-main` branch instead of a tagged release with `composer require --dev empiricompany/harbor:dev-main`.
 
-Generate Harbor's project files in [`.harbor/`](../../.harbor/):
+Generate Harbor's project files in `.harbor/`:
 
 ```bash
 ./vendor/bin/harbor init
@@ -84,7 +84,7 @@ Use `./vendor/bin/harbor up -d --build` when the application image must be built
 
 ### Shell alias
 
-Composer exposes the Harbor CLI at [`vendor/bin/harbor`](../../vendor/bin/harbor). To invoke it as `harbor` without the `./vendor/bin/` prefix, add a shell alias to `~/.zshrc` or `~/.bashrc` and restart your shell:
+Composer exposes the Harbor CLI at `vendor/bin/harbor`. To invoke it as `harbor` without the `./vendor/bin/` prefix, add a shell alias to `~/.zshrc` or `~/.bashrc` and restart your shell:
 
 ```bash
 alias harbor='./vendor/bin/harbor'
@@ -96,7 +96,7 @@ Depending on the state of the project, choose one of the two options below.
 
 ### Install from scratch
 
-If the Maho project is not installed yet, run the installer with `db` as the database host and the credentials from [`.harbor/.env`](../../.harbor/.env):
+If the Maho project is not installed yet, run the installer with `db` as the database host and the credentials from `.harbor/.env`:
 
 ```bash
 ./vendor/bin/harbor maho install \
@@ -136,7 +136,7 @@ If you already have a database dump, Harbor provides two additional commands to 
 
 Compression is not auto-detected: a gzip or zstd dump (even with a plain `.sql` name) needs `--compression=gzip` or `--compression=zstd`. Use `--drop-tables` to drop and recreate the database before importing, for a clean restore. When `pv` is available in the container, both commands show a progress bar; `zstd` is required only when `--compression=zstd` is requested.
 
-Harbor does not create [`app/etc/local.xml`](../../app/etc/local.xml) or replace the Maho installer. Database defaults exposed to the containers are `db:3306`, database `maho`, user `maho`, and password `maho`; make sure the Maho installation uses the values appropriate for the project.
+Harbor does not create `app/etc/local.xml` or replace the Maho installer. Database defaults exposed to the containers are `db:3306`, database `maho`, user `maho`, and password `maho`; make sure the Maho installation uses the values appropriate for the project.
 
 ## Quick start and base stack
 
@@ -144,14 +144,14 @@ The default stack contains:
 
 | Container | Description | Endpoint / notes |
 |---|---|---|
-| `app` | FrankenPHP (Caddy) + PHP + Node, serving the Maho application | `https://localhost:8443/` (via `HARBOR_APP_URL`) |
-| `db` | MySQL 8.4 | `db:3306`, database/user/password `maho` |
-| `mailpit` | Mailpit, local SMTP capture and web inbox | Web UI `http://localhost:8025`; SMTP `mailpit:1025` inside the Compose network |
-| `cron` | Ofelia, the scheduled-task runner | Watches Docker labels |
+| [`app`](resources/stubs/app.yaml) | FrankenPHP (Caddy) + PHP + Node, serving the Maho application | `https://localhost:8443/` (via `HARBOR_APP_URL`) |
+| [`db`](resources/stubs/db.yaml) | MySQL 8.4 | `db:3306`, database/user/password `maho` |
+| [`mailpit`](resources/stubs/mailpit.yaml) | Mailpit, local SMTP capture and web inbox | Web UI `http://localhost:8025`; SMTP `mailpit:1025` inside the Compose network |
+| [`cron`](resources/stubs/cron.yaml) | Ofelia, the scheduled-task runner | Watches Docker labels |
 
 The application URL is controlled by `HARBOR_APP_URL` and defaults to `https://localhost:8443/`. The base Mailpit UI defaults to `http://localhost:8025`; applications send SMTP to `mailpit:1025` inside the Compose network.
 
-Project files are generated in [`.harbor/`](../../.harbor/). Do not edit [`.harbor/compose.yaml`](../../.harbor/compose.yaml) directly; see [Customizing the stack](#customizing-the-stack) to override it.
+Project files are generated in `.harbor/`. Do not edit `.harbor/compose.yaml` directly; see [Customizing the stack](#customizing-the-stack) to override it.
 
 ## Main commands
 
@@ -209,8 +209,8 @@ Project files are generated in [`.harbor/`](../../.harbor/). Do not edit [`.harb
 
 Base services and optional profile services are separate.
 The built-in profiles are `redis`, `adminer`, and `phpmyadmin`.
-Harbor also reads any custom service you declare with a `profiles:` key in [`.harbor/docker.override.yaml`](../../.harbor/docker.override.yaml) or [`.harbor/docker.install.yaml`](../../.harbor/docker.install.yaml) (inline `profiles: [newprofilename]`) and manages it exactly like the built-in ones.
-Profiles are stored as a comma-separated `HARBOR_PROFILES` value in [`.harbor/.env`](../../.harbor/.env).
+Harbor also reads any custom service you declare with a `profiles:` key in `.harbor/docker.override.yaml` or `.harbor/docker.install.yaml` (inline `profiles: [newprofilename]`) and manages it exactly like the built-in ones.
+Profiles are stored as a comma-separated `HARBOR_PROFILES` value in `.harbor/.env`.
 
 ```bash
 ./vendor/bin/harbor services list
@@ -223,7 +223,7 @@ Profiles are stored as a comma-separated `HARBOR_PROFILES` value in [`.harbor/.e
 `services add` and `services remove` update `.harbor/.env`; they do not start or stop containers.
 Run `up -d` to apply a profile change and `ps` to verify it.
 
-### Redis (optional profile: `redis`)
+### Redis (optional profile: [`redis`](resources/stubs/redis.yaml))
 
 | Property | Default |
 |---|---|
@@ -257,7 +257,7 @@ Configuration example:
 - SMTP from containers: `mailpit:1025`.
 - `HARBOR_MAILPIT_PORT` and `HARBOR_MAILPIT_SMTP_PORT` can change the published host ports. Mailpit is always part of the base stack.
 
-### Adminer (optional profile: `adminer`)
+### Adminer (optional profile: [`adminer`](resources/stubs/adminer.yaml))
 
 | Property | Default |
 |---|---|
@@ -265,9 +265,9 @@ Configuration example:
 | Endpoint | `http://localhost:8082` |
 | Environment variables | `HARBOR_ADMINER_PORT=8082` (host port), `ADMINER_DEFAULT_SERVER=db` |
 
-The login server field is pre-filled with `db`; enter user, password, and database manually, using the credentials from [`.harbor/.env`](../../.harbor/.env).
+The login server field is pre-filled with `db`; enter user, password, and database manually, using the credentials from `.harbor/.env`.
 
-### phpMyAdmin (optional profile: `phpmyadmin`)
+### phpMyAdmin (optional profile: [`phpmyadmin`](resources/stubs/phpmyadmin.yaml))
 
 | Property | Default |
 |---|---|
@@ -275,11 +275,11 @@ The login server field is pre-filled with `db`; enter user, password, and databa
 | Endpoint | `http://localhost:8081` |
 | Environment variables | `HARBOR_PHPMYADMIN_PORT=8081` (host port), `PMA_HOST=db`, `PMA_PORT=3306`, `PMA_USER=maho`, `PMA_PASSWORD=maho` |
 
-Connects to the `db` service at `db:3306` with the credentials from [`.harbor/.env`](../../.harbor/.env).
+Connects to the `db` service at `db:3306` with the credentials from `.harbor/.env`.
 
 ### Extending the stack: profiles vs. default services
 
-When you extend and customize your local Harbor installation in [`.harbor/docker.override.yaml`](../../.harbor/docker.override.yaml) or [`.harbor/docker.install.yaml`](../../.harbor/docker.install.yaml), the `profiles` key controls how a service is started:
+When you extend and customize your local Harbor installation in `.harbor/docker.override.yaml` or `.harbor/docker.install.yaml`, the `profiles` key controls how a service is started:
 
 - **Additional (opt-in) service**: declare `profiles: [yourprofile]`. The service starts only when the profile is enabled, with `./vendor/bin/harbor services add yourprofile` (or by passing `--profile yourprofile` to `up`). It is discovered automatically and managed like the built-in profiles.
 - **Part of the default stack**: omit the `profiles` key entirely. The service starts on every `./vendor/bin/harbor up`, without needing `--profile`.
@@ -308,7 +308,7 @@ Both jobs run as user `maho` and set `no-overlap: "true"`. Start the service exp
 ./vendor/bin/harbor cron
 ```
 
-Custom jobs are supported through Compose labels in [`.harbor/docker.override.yaml`](../../.harbor/docker.override.yaml). Add labels to `app` (or another service) using Ofelia's `ofelia.job-exec.<job-name>.*` format, for example:
+Custom jobs are supported through Compose labels in `.harbor/docker.override.yaml`. Add labels to `app` (or another service) using Ofelia's `ofelia.job-exec.<job-name>.*` format, for example:
 
 ```yaml
 services:
@@ -326,7 +326,7 @@ Recreate the service after changing labels with `./vendor/bin/harbor up -d` and 
 
 Xdebug is included in the application image: the package Dockerfile installs it together with the core PHP extensions.
 
-Enable it by setting `HARBOR_XDEBUG_MODE` in [`.harbor/.env`](../../.harbor/.env):
+Enable it by setting `HARBOR_XDEBUG_MODE` in `.harbor/.env`:
 
 ```ini
 HARBOR_XDEBUG_MODE=debug
@@ -352,7 +352,7 @@ Use the Harbor debug wrapper to run a PHP command or script with Xdebug enabled:
 
 The container mounts the project at `/app`, so map `/app` to the project root in your IDE.
 
-**VS Code:** install the "PHP Debug" extension (`xdebug.php-debug`) and add this launch configuration (already provided in [`.vscode/launch.json`](../../.vscode/launch.json)):
+**VS Code:** install the "PHP Debug" extension (`xdebug.php-debug`) and add this launch configuration (already provided in `.vscode/launch.json`):
 
 ```json
 {
@@ -375,7 +375,7 @@ Start "Listen for Xdebug" (F5), set a breakpoint, then trigger a request in the 
 
 ### Linux and Docker Desktop
 
-`host.docker.internal` normally resolves to the host. On Docker Desktop for Linux it can resolve to an unreachable IPv6 address, and Xdebug logs `Network is unreachable`. In that case set the IPv4 literal in [`.harbor/.env`](../../.harbor/.env):
+`host.docker.internal` normally resolves to the host. On Docker Desktop for Linux it can resolve to an unreachable IPv6 address, and Xdebug logs `Network is unreachable`. In that case set the IPv4 literal in `.harbor/.env`:
 
 ```ini
 HARBOR_XDEBUG_CLIENT_HOST=192.168.65.254
@@ -391,10 +391,10 @@ Generate the Dev Container file with:
 ./vendor/bin/harbor devcontainer --force
 ```
 
-This writes [`.devcontainer/devcontainer.json`](../../.devcontainer/devcontainer.json).
-The generated configuration points to [`../.harbor/compose.yaml`](../../.harbor/compose.yaml), opens the `app` service, and uses `/app` as the workspace folder.
+This writes [`.devcontainer/devcontainer.json`](resources/devcontainer/devcontainer.json).
+The generated configuration points to `../.harbor/compose.yaml`, opens the `app` service, and uses `/app` as the workspace folder.
 
-Open the project in VS Code with the Microsoft Dev Containers extension. When VS Code detects the [`.devcontainer/devcontainer.json`](../../.devcontainer/devcontainer.json) file, it prompts you to reopen the project in the configured container.
+Open the project in VS Code with the Microsoft Dev Containers extension. When VS Code detects the [`.devcontainer/devcontainer.json`](resources/devcontainer/devcontainer.json) file, it prompts you to reopen the project in the configured container.
 
 The generated configuration installs the Maho VS Code extension (`mahocommerce.maho`) automatically. Install the Microsoft Dev Containers extension locally to reopen the project in the container.
 
@@ -402,7 +402,7 @@ The generated configuration installs the Maho VS Code extension (`mahocommerce.m
 
 For the Maho VS Code extension, configure PHP to run through Harbor from the repository root.
 
-Add this setting to [`.vscode/settings.json`](../../.vscode/settings.json):
+Add this setting to `.vscode/settings.json`:
 
 ```json
 {
@@ -429,7 +429,7 @@ Start the application stack first, then configure the client to execute Harbor f
 
 ## Customizing the stack
 
-Customize your local stack by adding Compose fragments to [`.harbor/docker.override.yaml`](../../.harbor/docker.override.yaml). Both it and [`.harbor/docker.install.yaml`](../../.harbor/docker.install.yaml) are merged over [`.harbor/compose.yaml`](../../.harbor/compose.yaml); never edit the generated file directly.
+Customize your local stack by adding Compose fragments to `.harbor/docker.override.yaml`. Both it and `.harbor/docker.install.yaml` are merged over `.harbor/compose.yaml`; never edit the generated file directly.
 
 ### Add a service
 
@@ -484,10 +484,10 @@ After editing, apply the changes with `./vendor/bin/harbor up -d`. Add `--build`
 
 ## Customization and generated files
 
-- [`.harbor/docker.override.yaml`](../../.harbor/docker.override.yaml) is for persistent project or local Compose overrides.
-- [`.harbor/docker.install.yaml`](../../.harbor/docker.install.yaml) is for install-specific additions and settings.
-- [`.harbor/stubs/<service>.yaml`](../../.harbor/stubs/) overrides a matching package stub when present.
-- `HARBOR_PHP_EXTENSIONS` in [`.harbor/.env`](../../.harbor/.env) adds extra PHP extensions to the application image, as a space-separated list of `install-php-extensions` names:
+- `.harbor/docker.override.yaml` is for persistent project or local Compose overrides.
+- `.harbor/docker.install.yaml` is for install-specific additions and settings.
+- `.harbor/stubs/<service>.yaml` overrides a matching package stub when present.
+- `HARBOR_PHP_EXTENSIONS` in `.harbor/.env` adds extra PHP extensions to the application image, as a space-separated list of `install-php-extensions` names:
 
   ```ini
   HARBOR_PHP_EXTENSIONS="gmp imagick"
@@ -497,7 +497,7 @@ After editing, apply the changes with `./vendor/bin/harbor up -d`. Add `--build`
 
 Keep secrets out of versioned override files. `init --force` can replace generated environment and Compose files.
 
-Harbor does not update Maho's [`local.xml`](../../app/etc/local.xml) automatically.
+Harbor does not update Maho's `local.xml` automatically.
 
 ## Troubleshooting
 
@@ -513,7 +513,7 @@ Run the launcher from the directory containing `vendor/`, `.harbor/`, and the Ma
 
 ## For developers
 
-To contribute to Harbor itself (forking the repository, setting up a local `localdev` checkout, and running the pre-pull-request checks), read the contribution guide in [CONTRIBUTING.md](CONTRIBUTING.md).
+To contribute to Harbor itself (forking the repository, cloning it locally, and running the pre-pull-request checks), read the contribution guide in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Package tests
 
