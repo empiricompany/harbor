@@ -110,6 +110,8 @@ If the Maho project is not installed yet, run the installer with `db` as the dat
   --sample_data 1
 ```
 
+For the full installer documentation, see [mahocommerce.com/about/getting-started/#install-maho](https://mahocommerce.com/about/getting-started/#install-maho).
+
 Then reindex and flush the cache:
 
 ```bash
@@ -233,7 +235,7 @@ Run `up -d` to apply a profile change and `ps` to verify it.
 
 The service uses a temporary `/data` storage with `volatile-lfu` eviction. Connect from containers with `redis:6379`, from the host with `redis-cli -h 127.0.0.1 -p 6379`, or from the CLI with `./vendor/bin/harbor redis ...`.
 
-Configuration example:
+Configuration example for `local.xml`:
 
 ```xml
 <session_save>redis</session_save>
@@ -249,6 +251,8 @@ Configuration example:
   </backend_options>
 </cache>
 ```
+
+For the full Redis hosting documentation, see [mahocommerce.com/hosting/redis/](https://mahocommerce.com/hosting/redis/).
 
 ### Mailpit (base service)
 
