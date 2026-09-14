@@ -46,6 +46,8 @@ Add Harbor to your Maho project as a Composer development dependency:
 composer require --dev empiricompany/harbor
 ```
 
+> **Tip:** Harbor is under active development and changes frequently. To always use the latest changes, install the `dev-main` branch instead of a tagged release with `composer require --dev empiricompany/harbor:dev-main`.
+
 Generate Harbor's project files in [`.harbor/`](../../.harbor/):
 
 ```bash
