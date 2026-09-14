@@ -1,0 +1,41 @@
+includes:
+    - vendor/mahocommerce/maho-phpstan-plugin/extension.neon
+    - vendor/phpstan/phpstan/conf/bleedingEdge.neon
+    - vendor/phpstan/phpstan-deprecation-rules/rules.neon
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+
+parameters:
+    strictRules:
+        allRules: false
+        matchingInheritedMethodNames: true
+        disallowedBacktick: true
+
+    level: 8
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+    tmpDir: .phpstan.cache
+    reportUnmatchedIgnoredErrors: true
+    checkFunctionNameCase: true
+    checkInternalClassCaseSensitivity: true
+    checkMissingOverrideMethodAttribute: true
+    treatPhpDocTypesAsCertain: false
+    reportMaybesInPropertyPhpDocTypes: true
+    reportMaybesInMethodSignatures: false
+
+    fileExtensions:
+        - php
+        - phtml
+
+    paths:
+        - lib
+
+    excludePaths:
+        analyse:
+            - vendor/mahocommerce/maho-phpstan-plugin/mock
+        analyseAndScan:
+            - vendor/mahocommerce/maho-phpstan-plugin/mock
+
+    ignoreErrors:
+        -
+            identifier: property.missingOverride
+            reportUnmatched: false

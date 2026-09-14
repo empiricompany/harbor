@@ -1,11 +1,8 @@
 <?php
 
 /**
- * Maho - Local Command
- *
- * @package    MahoCLI
- * @copyright  Copyright (c) 2024-2026 Maho (https://mahocommerce.com)
- * @license    https://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
+ * SPDX-FileCopyrightText: 2024-2026 Maho <https://mahocommerce.com>
+ * SPDX-License-Identifier: MIT
  */
 
 declare(strict_types=1);
@@ -59,7 +56,7 @@ class DbImport extends BaseMahoCommand
         $user     = (string) $conn->username;
         $password = (string) $conn->password;
 
-        $file = $input->getArgument('file');
+        $file = (string) $input->getArgument('file');
         if (!file_exists($file)) {
             $output->writeln("<error>File not found: $file</error>");
             return Command::FAILURE;
@@ -103,7 +100,7 @@ class DbImport extends BaseMahoCommand
         // `pv` is a soft dependency: when present it shows a bar on the
         // compressed file bytes; otherwise we fall back to `cat`.
         $hasPv  = $this->binaryExists('pv');
-        $size   = filesize($file);
+        $size   = (int) filesize($file);
         $source = $hasPv ? sprintf('pv -s %d %s', $size, escapeshellarg($file)) : sprintf('cat %s', escapeshellarg($file));
 
         $importCmd = match ($compression) {

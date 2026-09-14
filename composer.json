@@ -4,6 +4,16 @@
   "license": "MIT",
   "type": "maho-module",
   "require": {
+    "php": ">=8.3"
+  },
+  "require-dev": {
+    "friendsofphp/php-cs-fixer": "*",
+    "mahocommerce/maho": "*",
+    "mahocommerce/maho-phpstan-plugin": "*",
+    "phpstan/phpstan": "*",
+    "phpstan/phpstan-deprecation-rules": "*",
+    "phpstan/phpstan-strict-rules": "*",
+    "rector/rector": "*"
   },
   "autoload": {
     "psr-4": {
@@ -14,10 +24,28 @@
       "lib/MahoCLI/Commands/DbImport.php"
     ]
   },
+  "config": {
+    "allow-plugins": {
+      "mahocommerce/maho-composer-plugin": true
+    },
+    "platform": {
+      "php": "8.3"
+    }
+  },
   "scripts": {
     "test": "bash tests/harbor.sh",
     "lint": "if command -v shellcheck >/dev/null; then shellcheck bin/harbor tests/harbor.sh; else echo 'shellcheck is not installed'; fi",
-    "format": "if command -v shfmt >/dev/null; then shfmt -w bin/harbor tests/harbor.sh; else echo 'shfmt is not installed'; fi"
+    "format": "if command -v shfmt >/dev/null; then shfmt -w bin/harbor tests/harbor.sh; else echo 'shfmt is not installed'; fi",
+    "cs": "vendor/bin/php-cs-fixer fix --dry-run --diff",
+    "cs-fix": "vendor/bin/php-cs-fixer fix",
+    "phpstan": "vendor/bin/phpstan analyse",
+    "rector": "vendor/bin/rector --dry-run",
+    "check": [
+      "@test",
+      "@cs",
+      "@phpstan",
+      "@rector"
+    ]
   },
   "bin": [
     "bin/harbor"

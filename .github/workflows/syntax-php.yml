@@ -1,0 +1,41 @@
+name: PHP Syntax Check
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+    workflow_dispatch:
+
+jobs:
+    syntax-php:
+        runs-on: ubuntu-latest
+
+        strategy:
+            fail-fast: false
+            matrix:
+                php-version: ['8.3', '8.4', '8.5']
+
+        name: PHP Syntax (PHP ${{ matrix.php-version }})
+
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+              with:
+                  php-version: ${{ matrix.php-version }}
+
+            - name: Check PHP syntax
+              run: |
+                  errors=0
+                  while IFS= read -r file; do
+                      if ! php -d error_reporting=E_ALL -d short_open_tag=Off -l "$file" > /dev/null 2>&1; then
+                          output=$(php -d error_reporting=E_ALL -d short_open_tag=Off -l "$file" 2>&1)
+                          echo "::error file=$file::$output"
+                          errors=$((errors + 1))
+                      fi
+                  done < <(find lib -type f \( -name '*.php' -o -name '*.phtml' \))
+                  if [ $errors -gt 0 ]; then
+                      echo "$errors file(s) with syntax errors"
+                      exit 1
+                  fi
+                  echo "All files passed syntax check"
