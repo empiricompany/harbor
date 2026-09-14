@@ -419,7 +419,7 @@ phpstan)
 debug)
 	shift
 	if compose exec -T app php -r 'exit(extension_loaded("xdebug") ? 0 : 1);' >/dev/null 2>&1; then
-		app_exec php -d xdebug.start_with_request=yes "$@"
+		app_exec php -d xdebug.mode=debug -d xdebug.start_with_request=yes "$@"
 	else
 		printf 'Xdebug is not installed; running PHP without Xdebug support.\n' >&2
 		app_exec php "$@"

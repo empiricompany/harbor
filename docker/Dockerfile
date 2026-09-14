@@ -18,12 +18,12 @@ RUN install -d /data /config \
     && chown -R maho:maho /data /config
 
 RUN set -eux; \
-    APT_PKGS="git patch unzip curl msmtp default-mysql-client postgresql-client sqlite3 \
+    APT_PKGS="git patch unzip curl msmtp default-mysql-client postgresql-client sqlite3 libvips42 \
         libasound2 libatk-bridge2.0-0 libatk1.0-0 libcairo2 libcups2 libdbus-1-3 \
         libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 \
         libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxdamage1 libxfixes3 \
         libxkbcommon0 libxrandr2 libatspi2.0-0"; \
-    PHP_EXTENSIONS="ftp gd intl zip soap pcntl pdo_mysql pdo_pgsql pgsql pdo_sqlite redis xdebug $HARBOR_PHP_EXTENSIONS"; \
+    PHP_EXTENSIONS="ftp gd intl zip soap pcntl pdo_mysql pdo_pgsql pgsql pdo_sqlite redis xdebug ffi $HARBOR_PHP_EXTENSIONS"; \
     install-php-extensions $PHP_EXTENSIONS \
     && apt-get update \
     && apt-get install -y --no-install-recommends $APT_PKGS \
