@@ -1,8 +1,10 @@
 # Harbor local development
 
+**Same harbor for every developer.** A reproducible Docker Compose stack and the Swiss Army knife for Maho development, built for humans and naturally understood by AI agents.
+
 > **Beta:** Harbor is for local development only. It is actively developed and must not be used for production deployments. Commands, generated files, and defaults may change without notice.
 
-Harbor is the Docker Compose launcher and local development stack for Maho projects. Run all commands from the Maho project root. Harbor requires Docker and Docker Compose.
+Harbor is the Docker Compose launcher and local development stack for Maho projects: a single, reproducible environment no matter who runs it. Run all commands from the Maho project root. Harbor requires Docker and Docker Compose.
 
 Harbor ships with all the required libraries to use:
 
