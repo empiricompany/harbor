@@ -130,10 +130,10 @@ If you already have a database dump, Harbor provides two additional commands to 
 
 ```bash
 # Import a dump into the database
-./vendor/bin/harbor maho db:import <file> [--compression=gzip|zstd|none] [--drop-tables]
+./vendor/bin/harbor maho db:import backup.sql.tzst [--compression=gzip|zstd|none] [--drop-tables]
 
 # Export the current database to a dump file
-./vendor/bin/harbor maho db:export <file> [--compression=gzip|zstd|none]
+./vendor/bin/harbor maho db:export backup.sql.tzst [--compression=gzip|zstd|none]
 ```
 
 Compression is not auto-detected: a gzip or zstd dump (even with a plain `.sql` name) needs `--compression=gzip` or `--compression=zstd`. Use `--drop-tables` to drop and recreate the database before importing, for a clean restore. When `pv` is available in the container, both commands show a progress bar; `zstd` is required only when `--compression=zstd` is requested.
