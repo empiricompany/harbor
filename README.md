@@ -35,6 +35,7 @@ Harbor ships with all the required libraries to use:
 - [MCP server](#mcp-server)
 - [Customizing the stack](#customizing-the-stack)
 - [Customization and generated files](#customization-and-generated-files)
+- [Logs](#logs)
 - [Troubleshooting](#troubleshooting)
 - [For developers](#for-developers)
 - [Package tests](#package-tests)
@@ -502,6 +503,27 @@ After editing, apply the changes with `./vendor/bin/harbor up -d`. Add `--build`
 Keep secrets out of versioned override files. `init --force` can replace generated environment and Compose files.
 
 Harbor does not update Maho's `local.xml` automatically.
+
+## Logs
+
+The application container writes both the web server access log and the PHP
+error log to stdout/stderr, so everything arrives in a single stream:
+
+```bash
+./vendor/bin/harbor logs app
+./vendor/bin/harbor logs -f app
+```
+
+- **Access log** — [`resources/caddy/26.7.caddyfile`](resources/caddy/26.7.caddyfile)
+  enables Caddy's `log` directive with `output stdout`: one JSON line per
+  request carrying the method, uri, status, duration and size. Caddy does not
+  log requests by default, so without that directive the container log only
+  shows startup and runtime messages.
+- **PHP error log** — [`resources/php/php.ini`](resources/php/php.ini) sets
+  `log_errors = On` and `error_log = /proc/self/fd/2`, the container's stderr.
+  `error_reporting = E_ALL`, `display_errors = On` and
+  `display_startup_errors = On` stay enabled for developer mode, so an error is
+  both displayed in the response and written to the log.
 
 ## Troubleshooting
 

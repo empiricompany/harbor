@@ -24,6 +24,13 @@
 	root {$SERVER_ROOT:public/}
 	encode zstd br gzip
 
+	# Access log on the container's stdout, one JSON line per request (method,
+	# uri, status, duration, size). Caddy does not log requests by default, so
+	# without this `harbor logs app` only shows startup and runtime messages.
+	log {
+		output stdout
+	}
+
 	header X-Content-Type-Options "nosniff"
 
 	{$CADDY_SERVER_EXTRA_DIRECTIVES}
