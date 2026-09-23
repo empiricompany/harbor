@@ -18,3 +18,18 @@ jobs:
                   generate_release_notes: true
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # The auto-generated notes only list merged pull requests, so
+            # features and BREAKING CHANGES are written in the annotated tag
+            # message and prepended to them here.
+            - name: Prepend the annotated tag notes
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  annotation="$(git for-each-ref --format='%(contents)' "refs/tags/${GITHUB_REF_NAME}")"
+                  if [ -z "${annotation}" ]; then
+                      echo "No annotated tag message: keeping the generated notes as-is."
+                      exit 0
+                  fi
+                  printf '%s\n\n%s\n' "${annotation}" "$(gh release view "${GITHUB_REF_NAME}" --json body -q .body)" > /tmp/release-notes.md
+                  gh release edit "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md
