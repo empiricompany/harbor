@@ -44,11 +44,11 @@ discover_stubs() {
 # Print the profile names declared in a stub file (inline `profiles: [a, b]` form).
 stub_profile_names() {
 	local file=$1
-	grep -E '^[[:space:]]*profiles:' "$file" \
-		| sed 's/^[[:space:]]*profiles:[[:space:]]*//; s/\[//g; s/\]//g; s/"//g' \
-		| tr ',' '\n' \
-		| sed 's/^[[:space:]]*-[[:space:]]*//; s/[[:space:]]//g' \
-		| grep -v '^$'
+	grep -E '^[[:space:]]*profiles:' "$file" |
+		sed 's/^[[:space:]]*profiles:[[:space:]]*//; s/\[//g; s/\]//g; s/"//g' |
+		tr ',' '\n' |
+		sed 's/^[[:space:]]*-[[:space:]]*//; s/[[:space:]]//g' |
+		grep -v '^$'
 }
 
 PACKAGE_ROOT=$(resolve_package_root)
@@ -349,10 +349,10 @@ app_exec() {
 
 # Wait until the quick tunnel prints its public trycloudflare.com URL.
 tunnel_resolve_url() {
-	local profile=$1 url="" i
-	for i in $(seq 1 60); do
-		url=$(compose logs "$profile" 2>/dev/null \
-			| grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | head -n1)
+	local profile=$1 url=""
+	for _ in $(seq 1 60); do
+		url=$(compose logs "$profile" 2>/dev/null |
+			grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | head -n1)
 		[ -n "$url" ] && break
 		sleep 2
 	done
@@ -363,8 +363,8 @@ tunnel_resolve_url() {
 # Wait until the named tunnel has registered a connection to the edge.
 # The matched log line may need adjustment across cloudflared versions.
 tunnel_wait_connection() {
-	local profile=$1 i
-	for i in $(seq 1 60); do
+	local profile=$1
+	for _ in $(seq 1 60); do
 		compose logs "$profile" 2>/dev/null | grep -q 'Registered tunnel connection' && return 0
 		sleep 2
 	done
@@ -630,7 +630,10 @@ tunnel)
 	mode=${1:-}
 	case "$mode" in
 	up | quick | down) shift ;;
-	"" | -h | --help) tunnel_help; exit 0 ;;
+	"" | -h | --help)
+		tunnel_help
+		exit 0
+		;;
 	*) usage_error 'usage: harbor tunnel {up|quick|down} [--autoconfig]' ;;
 	esac
 
@@ -646,7 +649,7 @@ tunnel)
 		token=$(env_value HARBOR_CLOUDFLARED_TOKEN)
 		[ -n "$token" ] || fail 'HARBOR_CLOUDFLARED_TOKEN is not set in .harbor/.env'
 		services_command add cloudflared
-		build_compose_args                       # profile just became active
+		build_compose_args # profile just became active
 		compose up -d cloudflared
 		tunnel_wait_connection cloudflared
 		url="https://${hostname}/"
@@ -662,7 +665,7 @@ tunnel)
 	down)
 		services_command remove cloudflared 2>/dev/null || true
 		services_command remove cloudflared-quick 2>/dev/null || true
-		local_url=$(env_value HARBOR_APP_URL)   # e.g. https://localhost:8443/ (trailing slash included)
+		local_url=$(env_value HARBOR_APP_URL) # e.g. https://localhost:8443/ (trailing slash included)
 
 		if [ "$autoconfig" -eq 1 ]; then
 			tunnel_update_maho_config "$local_url" '' 1
