@@ -1,0 +1,14 @@
+# Cloudflare Tunnel, named tunnel (fixed domain). Profile: cloudflared.
+# The ingress (public hostname -> origin) is configured in the Cloudflare
+# dashboard; set the origin to https://app:8443 with Origin Server Name
+# "localhost", HTTP Host Header "localhost:8443" and TLS verify disabled (the
+# local certificate is self-signed).
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: [cloudflared]
+    command: tunnel --no-autoupdate run
+    environment:
+      # Required for named tunnels; `harbor tunnel up` checks it in .harbor/.env.
+      TUNNEL_TOKEN: "${HARBOR_CLOUDFLARED_TOKEN:-}"
+    networks: [harbor]

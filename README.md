@@ -28,6 +28,7 @@ Harbor ships with all the required libraries to use:
   - [Mailpit (base service)](#mailpit-base-service)
   - [Adminer (optional profile: `adminer`)](#adminer-optional-profile-adminer)
   - [phpMyAdmin (optional profile: `phpmyadmin`)](#phpmyadmin-optional-profile-phpmyadmin)
+  - [Cloudflare Tunnel (optional profiles: `cloudflared`, `cloudflared-quick`)](#cloudflare-tunnel-optional-profiles-cloudflared-cloudflared-quick)
   - [Extending the stack: profiles vs. default services](#extending-the-stack-profiles-vs-default-services)
 - [Additional cron jobs](#additional-cron-jobs)
 - [Xdebug](#xdebug)
@@ -281,6 +282,91 @@ The login server field is pre-filled with `db`; enter user, password, and databa
 | Environment variables | `HARBOR_PHPMYADMIN_PORT=8081` (host port), `PMA_HOST=db`, `PMA_PORT=3306`, `PMA_USER=maho`, `PMA_PASSWORD=maho` |
 
 Connects to the `db` service at `db:3306` with the credentials from `.harbor/.env`.
+
+### Cloudflare Tunnel (optional profiles: [`cloudflared`](resources/stubs/cloudflared.yaml), [`cloudflared-quick`](resources/stubs/cloudflared-quick.yaml))
+
+`cloudflared` is the Cloudflare Tunnel client: it exposes the local store to the
+public internet over a secure outbound-only tunnel without opening inbound ports.
+
+| Mode | Profile | Command | Public URL |
+|---|---|---|---|
+| Named tunnel (fixed domain) | `cloudflared` | `harbor tunnel up` | `HARBOR_CLOUDFLARED_HOSTNAME` |
+| Quick tunnel (ephemeral) | `cloudflared-quick` | `harbor tunnel quick` | `*.trycloudflare.com` |
+
+#### Quick tunnel (no account, ephemeral URL)
+
+The quick tunnel needs no Cloudflare account or token: it exposes the store on
+an ephemeral `*.trycloudflare.com` URL.
+
+```bash
+./vendor/bin/harbor tunnel quick --autoconfig
+```
+
+Harbor starts `cloudflared`, waits for the public URL and (with `--autoconfig`)
+points Maho at it. To stop it and restore the local URL:
+
+```bash
+./vendor/bin/harbor tunnel down --autoconfig    # restore HARBOR_APP_URL
+```
+
+#### Named tunnel (fixed domain)
+
+The named tunnel uses a fixed domain and needs a [one-time Cloudflare setup](#one-time-cloudflare-setup) — see below — plus two values in `.harbor/.env`:
+
+```env
+HARBOR_CLOUDFLARED_TOKEN=...              # tunnel token from the Cloudflare dashboard
+HARBOR_CLOUDFLARED_HOSTNAME=maho.example.com
+```
+
+Then:
+
+```bash
+./vendor/bin/harbor tunnel up --autoconfig
+```
+
+##### One-time Cloudflare setup
+
+The fixed domain must be a zone on your Cloudflare account. The public hostname
+points at the local origin `https://app:8443` and needs three origin settings —
+`Origin Server Name: localhost`, `HTTP Host Header: localhost:8443` and
+`No TLS Verify` — because Caddy serves the site only on `localhost` with a
+self-signed certificate.
+
+1. Zero Trust → **Networks → Tunnels → Create a tunnel** → type **Cloudflared**.
+   Name it and **Save**; copy the **token** shown on the next page.
+2. Open the tunnel → **Public Hostnames → Add a public hostname**:
+   - Subdomain/Domain: your fixed hostname (e.g. `maho.example.com`);
+   - Service: **HTTPS**, URL `app:8443`.
+3. **Additional application settings**:
+   - HTTP Settings → **HTTP Host Header**: `localhost:8443`;
+   - TLS → **Origin Server Name**: `localhost`;
+   - TLS → **No TLS Verify**: **Enabled**.
+4. **Save**. Cloudflare creates the DNS record automatically.
+
+Then put the two values in `.harbor/.env`:
+
+```env
+HARBOR_CLOUDFLARED_TOKEN=<token from step 1>          # the tunnel credential
+HARBOR_CLOUDFLARED_HOSTNAME=<hostname from step 2>    # e.g. maho.example.com
+```
+
+#### What `--autoconfig` does
+
+When the tunnel is up, Harbor prints the guide to point Maho at the public URL:
+
+```bash
+./vendor/bin/harbor maho config:set web/unsecure/base_url "https://maho.example.com/" --scope default --scope-id 0
+./vendor/bin/harbor maho config:set web/secure/base_url "https://maho.example.com/" --scope default --scope-id 0
+./vendor/bin/harbor maho config:set web/cookie/cookie_domain "maho.example.com" --scope default --scope-id 0
+./vendor/bin/harbor maho config:set web/url/redirect_to_base 0 --scope default --scope-id 0
+./vendor/bin/harbor maho index:reindex:all
+./vendor/bin/harbor maho cache:flush
+```
+
+By default nothing is changed in Maho: the guide is always printed, and
+`--autoconfig` applies it automatically (base URLs, cookie domain, disabling
+the base-URL auto-redirect, reindex and cache flush). `tunnel down --autoconfig`
+reverses it and restores `HARBOR_APP_URL`.
 
 ### Extending the stack: profiles vs. default services
 

@@ -1,0 +1,8 @@
+# Cloudflare Tunnel, quick tunnel (ephemeral trycloudflare.com URL).
+# Profile: cloudflared-quick. No account or token required.
+services:
+  cloudflared-quick:
+    image: cloudflare/cloudflared:latest
+    profiles: [cloudflared-quick]
+    command: tunnel --no-autoupdate --url https://app:8443 --no-tls-verify --origin-server-name localhost --http-host-header localhost:8443
+    networks: [harbor]
