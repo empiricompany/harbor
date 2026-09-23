@@ -211,7 +211,7 @@ Project files are generated in `.harbor/`. Do not edit `.harbor/compose.yaml` di
 ### How profiles work
 
 Base services and optional profile services are separate.
-The built-in profiles are `redis`, `adminer`, and `phpmyadmin`.
+Every service stub shipped with Harbor is auto-discovered: stubs without a `profiles:` key are base services, stubs with `profiles: [name]` are optional profile services (`redis`, `adminer`, `phpmyadmin`, ...).
 Harbor also reads any custom service you declare with a `profiles:` key in `.harbor/docker.override.yaml` or `.harbor/docker.install.yaml` (inline `profiles: [newprofilename]`) and manages it exactly like the built-in ones.
 Profiles are stored as a comma-separated `HARBOR_PROFILES` value in `.harbor/.env`.
 
@@ -284,7 +284,7 @@ Connects to the `db` service at `db:3306` with the credentials from `.harbor/.en
 
 ### Extending the stack: profiles vs. default services
 
-When you extend and customize your local Harbor installation in `.harbor/docker.override.yaml` or `.harbor/docker.install.yaml`, the `profiles` key controls how a service is started:
+When you extend and customize your local Harbor installation in `.harbor/docker.override.yaml` or `.harbor/docker.install.yaml`, the `profiles` key controls how a service is started. Harbor's own service stubs in `resources/stubs/` are auto-discovered the same way, so adding a new optional service to Harbor itself requires only a new `*.yaml` stub with a `profiles:` key — no changes to `bin/harbor`.
 
 - **Additional (opt-in) service**: declare `profiles: [yourprofile]`. The service starts only when the profile is enabled, with `./vendor/bin/harbor services add yourprofile` (or by passing `--profile yourprofile` to `up`). It is discovered automatically and managed like the built-in profiles.
 - **Part of the default stack**: omit the `profiles` key entirely. The service starts on every `./vendor/bin/harbor up`, without needing `--profile`.

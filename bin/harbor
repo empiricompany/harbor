@@ -19,6 +19,38 @@ resolve_package_root() {
 	CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd
 }
 
+# Discover service stubs and classify them into base services (no `profiles:`
+# key, always started) and profile-gated services (`profiles:` key present).
+# Scans packaged stubs and project-local stubs (.harbor/stubs); a project-local
+# stub with the same basename overrides the packaged one.
+discover_stubs() {
+	BASE_STUBS=()
+	PROFILE_STUBS=()
+	local file basename
+	for file in "$PACKAGE_ROOT/resources/stubs"/*.yaml "$HARBOR_DIR/stubs"/*.yaml; do
+		[ -f "$file" ] || continue
+		basename=$(basename "$file")
+		if [ -f "$HARBOR_DIR/stubs/$basename" ] && [ "$file" != "$HARBOR_DIR/stubs/$basename" ]; then
+			continue
+		fi
+		if grep -qE '^[[:space:]]*profiles:' "$file"; then
+			PROFILE_STUBS+=("$file")
+		else
+			BASE_STUBS+=("$file")
+		fi
+	done
+}
+
+# Print the profile names declared in a stub file (inline `profiles: [a, b]` form).
+stub_profile_names() {
+	local file=$1
+	grep -E '^[[:space:]]*profiles:' "$file" \
+		| sed 's/^[[:space:]]*profiles:[[:space:]]*//; s/\[//g; s/\]//g; s/"//g' \
+		| tr ',' '\n' \
+		| sed 's/^[[:space:]]*-[[:space:]]*//; s/[[:space:]]//g' \
+		| grep -v '^$'
+}
+
 PACKAGE_ROOT=$(resolve_package_root)
 PROJECT_ROOT=$(pwd)
 HARBOR_DIR=.harbor
@@ -33,8 +65,19 @@ env_value() {
 	sed -n "s/^${key}=//p" "$ENV_FILE" | head -n1
 }
 
-BUILTIN_PROFILES=(redis adminer phpmyadmin)
-AVAILABLE_PROFILES=("${BUILTIN_PROFILES[@]}")
+discover_stubs
+
+AVAILABLE_PROFILES=()
+for _stub in "${PROFILE_STUBS[@]}"; do
+	while IFS= read -r _profile; do
+		[ -n "$_profile" ] || continue
+		case " ${AVAILABLE_PROFILES[*]} " in
+		*" $_profile "*) ;;
+		*) AVAILABLE_PROFILES+=("$_profile") ;;
+		esac
+	done < <(stub_profile_names "$_stub")
+done
+unset _stub _profile
 
 # Profiles declared by services in the project-local Compose overrides
 # (.harbor/docker.override.yaml, .harbor/docker.install.yaml) are collected
@@ -156,19 +199,8 @@ compose_command() {
 	fi
 }
 
-build_service_compose_args() {
-	local service stub
-	for service in app db mailpit cron; do
-		stub=""
-		[ -f "$HARBOR_DIR/stubs/$service.yaml" ] && stub="$HARBOR_DIR/stubs/$service.yaml"
-		[ -n "$stub" ] || stub="$PACKAGE_ROOT/resources/stubs/$service.yaml"
-		[ -f "$stub" ] || fail "missing service stub: $stub"
-		COMPOSE_ARGS+=(-f "$stub")
-	done
-}
-
 build_compose_args() {
-	local project_name profiles_value profile stub
+	local project_name profiles_value profile
 	project_name=${HARBOR_PROJECT_NAME:-$(env_value HARBOR_PROJECT_NAME)}
 	project_name=${project_name:-harbor}
 	profiles_value=${HARBOR_PROFILES:-$(env_value HARBOR_PROFILES)}
@@ -177,13 +209,8 @@ build_compose_args() {
 		-p "$project_name"
 		-f .harbor/compose.yaml
 	)
-	build_service_compose_args
 
-	for profile in redis adminer phpmyadmin; do
-		stub=""
-		[ -f "$HARBOR_DIR/stubs/$profile.yaml" ] && stub="$HARBOR_DIR/stubs/$profile.yaml"
-		[ -n "$stub" ] || stub="$PACKAGE_ROOT/resources/stubs/$profile.yaml"
-		[ -f "$stub" ] || fail "missing service stub: $stub"
+	for stub in "${BASE_STUBS[@]}" "${PROFILE_STUBS[@]}"; do
 		COMPOSE_ARGS+=(-f "$stub")
 	done
 
