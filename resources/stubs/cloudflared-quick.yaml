@@ -4,5 +4,5 @@ services:
   cloudflared-quick:
     image: cloudflare/cloudflared:latest
     profiles: [cloudflared-quick]
-    command: tunnel --no-autoupdate --url https://app:8443 --no-tls-verify --origin-server-name localhost --http-host-header localhost:8443
+    command: tunnel --no-autoupdate --url https://app:8443 --no-tls-verify --origin-server-name localhost
     networks: [harbor]
