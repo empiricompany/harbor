@@ -14,6 +14,7 @@ Harbor ships with all the required libraries to use:
 ## Table of contents
 
 - [Install Harbor](#install-harbor)
+  - [Project name and data isolation](#project-name-and-data-isolation)
 - [Install Maho](#install-maho)
   - [Install from scratch](#install-from-scratch)
   - [Import an existing database](#import-an-existing-database)
@@ -82,7 +83,30 @@ Install the project dependencies inside the application container, now that the 
 ./vendor/bin/harbor composer install
 ```
 
-Use `./vendor/bin/harbor up -d --build` when the application image must be built. `init` creates `.harbor/` files only when they are absent; `init --force` replaces generated environment and Compose files and can overwrite local settings.
+Use `./vendor/bin/harbor up -d --build` when the application image must be built. `init` creates `.harbor/` files only when they are absent; `init --force` replaces generated environment and Compose files and can overwrite local settings. `init` also writes the Compose project name; see [Project name and data isolation](#project-name-and-data-isolation).
+
+### Project name and data isolation
+
+Every Docker Compose project has a name. Harbor derives it for you:
+
+- `./vendor/bin/harbor init` uses the **current directory name** as the project name and writes it to `HARBOR_PROJECT_NAME` in `.harbor/.env` and `.harbor/.env.example`. Running it from `/srv/maho_harbor` produces `HARBOR_PROJECT_NAME=maho_harbor`.
+- Pass `-p`/`--project-name` to set it explicitly, mirroring `docker compose -p`:
+
+  ```bash
+  ./vendor/bin/harbor init --project-name maho_harbor
+  ./vendor/bin/harbor init -p maho_harbor
+  ```
+
+  The value is normalized to a valid Compose name (lowercase, only `[a-z0-9_-]`); Harbor prints a notice when the sanitized value differs from the one you passed, so a folder named `My App` becomes `my-app`.
+- When `HARBOR_PROJECT_NAME` is empty, Harbor falls back to the current directory name at run time.
+
+Docker Compose prefixes containers (`<name>-app-1`), networks (`<name>_harbor`) and **named volumes** (`<name>_harbor-db-data`) with the project name. The database lives in the `harbor-db-data` volume (mounted at `/var/lib/mysql`), so two projects that share the same project name **share the same database volume**: the second project opens and overwrites the first project's data. The same happens when two different directories resolve to the same name.
+
+To keep environments isolated:
+
+- Use a unique `HARBOR_PROJECT_NAME` per checkout — the directory-based default already does this.
+- Change it before the first `up` with `./vendor/bin/harbor init --force -p <unique-name>` or by editing `.harbor/.env`.
+- Renaming the project on an existing stack creates a **new, empty** volume. The previous data stays under `<old-name>_harbor-db-data`; import its dump or remove it with `docker volume rm <old-name>_harbor-db-data`.
 
 ### Shell alias
 
@@ -162,7 +186,7 @@ Project files are generated in `.harbor/`. Do not edit `.harbor/compose.yaml` di
 ### Lifecycle
 
 ```bash
-./vendor/bin/harbor init [--force]
+./vendor/bin/harbor init [--force] [-p NAME]
 ./vendor/bin/harbor up -d [service...]
 ./vendor/bin/harbor down
 ./vendor/bin/harbor stop [service...]

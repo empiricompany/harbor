@@ -65,6 +65,54 @@ env_value() {
 	sed -n "s/^${key}=//p" "$ENV_FILE" | head -n1
 }
 
+# Normalize a directory name into a valid Docker Compose project name:
+# lowercase, only [a-z0-9_-], starting with a letter or digit.
+sanitize_project_name() {
+	local name=$1 sanitized
+	sanitized=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g')
+	if [ -z "$sanitized" ]; then
+		sanitized=harbor
+	fi
+	case "$sanitized" in
+	[a-z0-9]*) ;;
+	*) sanitized="harbor-$sanitized" ;;
+	esac
+	printf '%s\n' "$sanitized"
+}
+
+# Default Compose project name: the current project directory name.
+default_project_name() {
+	sanitize_project_name "$(basename -- "$PROJECT_ROOT")"
+}
+
+# Replace the HARBOR_PROJECT_NAME line in an env file, preserving the rest.
+set_project_name() {
+	local file=$1 name=$2 tmp
+	[ -f "$file" ] || return 0
+	tmp=$(mktemp "$file.XXXXXX") || fail "unable to create temporary file for $file"
+	awk -v name="$name" '
+		BEGIN { replaced = 0 }
+		/^HARBOR_PROJECT_NAME=/ {
+			if (!replaced) { print "HARBOR_PROJECT_NAME=" name; replaced = 1 }
+			next
+		}
+		/^[[:space:]]*#[[:space:]]*HARBOR_PROJECT_NAME=/ {
+			if (!replaced) { print "HARBOR_PROJECT_NAME=" name; replaced = 1 }
+			next
+		}
+		{ print }
+		END { if (!replaced) print "HARBOR_PROJECT_NAME=" name }
+	' "$file" >"$tmp" || {
+		rm -f "$tmp"
+		fail "unable to update $file"
+	}
+	cat "$tmp" >"$file" || {
+		rm -f "$tmp"
+		fail "unable to update $file"
+	}
+	rm -f "$tmp"
+}
+
 discover_stubs
 
 AVAILABLE_PROFILES=()
@@ -202,7 +250,7 @@ compose_command() {
 build_compose_args() {
 	local project_name profiles_value profile
 	project_name=${HARBOR_PROJECT_NAME:-$(env_value HARBOR_PROJECT_NAME)}
-	project_name=${project_name:-harbor}
+	project_name=${project_name:-$(default_project_name)}
 	profiles_value=${HARBOR_PROFILES:-$(env_value HARBOR_PROFILES)}
 	COMPOSE_ARGS=(
 		--env-file .harbor/.env
@@ -256,9 +304,38 @@ require_configuration() {
 }
 
 init_project() {
-	local force=0
-	[ "${1:-}" = --force ] || [ "${1:-}" = -f ] && force=1
-	[ "$#" -le 1 ] || usage_error 'usage: harbor init [--force]'
+	local force=0 has_name=0 requested_name="" project_name
+	# Mirror `docker compose -p/--project-name` for the project name.
+	while [ "$#" -gt 0 ]; do
+		case "$1" in
+		-f | --force)
+			force=1
+			shift
+			;;
+		-p | --project-name)
+			[ "$#" -ge 2 ] || usage_error 'harbor init: -p/--project-name requires a value'
+			requested_name=$2
+			has_name=1
+			shift 2
+			;;
+		--project-name=*)
+			requested_name=${1#*=}
+			has_name=1
+			shift
+			;;
+		*) usage_error "harbor init: unknown argument '$1' (usage: harbor init [--force] [-p|--project-name NAME])" ;;
+		esac
+	done
+	if [ "$has_name" -eq 1 ]; then
+		[ -n "$requested_name" ] || usage_error 'harbor init: -p/--project-name requires a non-empty value'
+		project_name=$(sanitize_project_name "$requested_name")
+		[ "$project_name" = "$requested_name" ] ||
+			printf 'Harbor: project name normalized to %s\n' "$project_name" >&2
+	else
+		# Default the Compose project name to the current directory name so that
+		# separate checkouts never share the same containers, volumes or networks.
+		project_name=$(default_project_name)
+	fi
 	mkdir -p "$HARBOR_DIR"
 	if [ "$force" -eq 1 ]; then
 		cp "$PACKAGE_ROOT/resources/env.example" "$HARBOR_DIR/.env.example"
@@ -267,9 +344,17 @@ init_project() {
 		printf 'services: {}\n' >"$HARBOR_DIR/docker.override.yaml"
 		printf 'services: {}\n' >"$HARBOR_DIR/docker.install.yaml"
 		cp "$PACKAGE_ROOT/resources/stubs/compose.stub" "$COMPOSE_FILE"
+		set_project_name "$HARBOR_DIR/.env.example" "$project_name"
+		set_project_name "$ENV_FILE" "$project_name"
 	else
-		[ -e "$HARBOR_DIR/.env.example" ] || cp "$PACKAGE_ROOT/resources/env.example" "$HARBOR_DIR/.env.example"
-		[ -e "$ENV_FILE" ] || cp "$PACKAGE_ROOT/resources/env.example" "$ENV_FILE"
+		if [ ! -e "$HARBOR_DIR/.env.example" ]; then
+			cp "$PACKAGE_ROOT/resources/env.example" "$HARBOR_DIR/.env.example"
+			set_project_name "$HARBOR_DIR/.env.example" "$project_name"
+		fi
+		if [ ! -e "$ENV_FILE" ]; then
+			cp "$PACKAGE_ROOT/resources/env.example" "$ENV_FILE"
+			set_project_name "$ENV_FILE" "$project_name"
+		fi
 		[ -e "$HARBOR_DIR/.gitignore" ] || cp "$PACKAGE_ROOT/resources/harbor.gitignore" "$HARBOR_DIR/.gitignore"
 		[ -e "$HARBOR_DIR/docker.override.yaml" ] || printf 'services: {}\n' >"$HARBOR_DIR/docker.override.yaml"
 		[ -e "$HARBOR_DIR/docker.install.yaml" ] || printf 'services: {}\n' >"$HARBOR_DIR/docker.install.yaml"
@@ -289,10 +374,9 @@ Harbor - Maho local development environment
 Usage: ./vendor/bin/harbor <command> [arguments]
 
 Getting started:
-	./vendor/bin/harbor init       Create .harbor files and .harbor/compose.yaml
-  # Review and adjust .harbor/.env
-  ./vendor/bin/harbor up -d      Start the Maho development stack
-  ./vendor/bin/harbor doctor      Check Docker, Compose, configuration, and services
+  ./vendor/bin/harbor init [options]   Create .harbor files and .harbor/compose.yaml (--force, -p/--project-name NAME)
+  ./vendor/bin/harbor up -d            Start the Maho development stack
+  ./vendor/bin/harbor doctor           Check Docker, Compose, configuration, and services
 
 Examples:
   ./vendor/bin/harbor php -v
@@ -327,7 +411,7 @@ Container tools:
   phpstan            Run PHPStan through vendor/bin/phpstan
 
 Project tools:
-  init               Create .harbor files and .harbor/compose.yaml from compose.stub
+  init [options]     Create .harbor files and .harbor/compose.yaml (--force, -p/--project-name NAME)
   doctor             Check Docker, Compose, configuration, and services
   open [target]      Open app, admin, or mailpit (default: app)
   services <action>  List or change optional Compose profiles

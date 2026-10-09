@@ -53,6 +53,33 @@ for file in .harbor/.env .harbor/.env.example .harbor/compose.yaml \
 	assert_file "$PROJECT/$file"
 done
 
+# The Compose project name defaults to the current directory name.
+assert_contains "$PROJECT/.harbor/.env" 'HARBOR_PROJECT_NAME=project'
+assert_contains "$PROJECT/.harbor/.env.example" 'HARBOR_PROJECT_NAME=project'
+
+# An explicit project name overrides the directory-based default.
+run_harbor init --force -p custom-name
+assert_contains "$PROJECT/.harbor/.env" 'HARBOR_PROJECT_NAME=custom-name'
+assert_contains "$PROJECT/.harbor/.env.example" 'HARBOR_PROJECT_NAME=custom-name'
+
+# The explicit name is normalized like a Docker Compose project name.
+run_harbor init --force --project-name "My App"
+assert_contains "$PROJECT/.harbor/.env" 'HARBOR_PROJECT_NAME=my-app'
+
+# A missing value is rejected...
+if run_harbor init --project-name >/dev/null 2>&1; then
+	fail '--project-name without a value was accepted'
+fi
+
+# ...and an unknown argument too.
+if run_harbor init --bogus >/dev/null 2>&1; then
+	fail 'unknown init argument was accepted'
+fi
+
+# Restore the directory-based default for the remaining assertions.
+run_harbor init --force
+assert_contains "$PROJECT/.harbor/.env" 'HARBOR_PROJECT_NAME=project'
+
 compose_hash=$(sha256sum "$PROJECT/.harbor/compose.yaml")
 local_hash=$(sha256sum "$PROJECT/app/etc/local.xml")
 printf '\nCUSTOM_VARIABLE=unchanged\n' >>"$PROJECT/.harbor/.env"
