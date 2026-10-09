@@ -22,7 +22,7 @@ services:
       retries: 10
     environment:
       MAHO_HARBOR: "1"
-      SERVER_NAME: https://:${HARBOR_APP_PORT:-8443}
+      CADDY_SERVER_ADDRESS: https://:${HARBOR_APP_PORT:-8443}
       CADDY_SERVER_EXTRA_DIRECTIVES: |
         tls internal {
         on_demand

@@ -41,7 +41,7 @@ RUN ln -f /etc/caddy/Caddyfile /etc/frankenphp/Caddyfile
 
 WORKDIR /app
 ENV SERVER_ROOT=public/
-ENV SERVER_NAME=https://localhost:8443
+ENV CADDY_SERVER_ADDRESS=https://localhost:8443
 ENV PATH=/usr/local/bin:${PATH}
 EXPOSE 8443
 USER maho

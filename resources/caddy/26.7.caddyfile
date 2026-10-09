@@ -6,9 +6,14 @@
 # implementation, and with https://mahocommerce.com/hosting/web-server/
 # See "Caddyfile Templates" in AGENTS.md before editing this file in place.
 {
-	# The https:// site address in SERVER_NAME makes Caddy generate a local
-	# certificate. `skip_install_trust` keeps the container from changing the
-	# host trust store; clients must use curl -k or trust the exported CA.
+	# The https:// site address in CADDY_SERVER_ADDRESS makes Caddy generate a
+	# local certificate. `skip_install_trust` keeps the container from changing
+	# the host trust store; clients must use curl -k or trust the exported CA.
+	#
+	# Deliberately not named SERVER_NAME: the environment of this container is
+	# shared with the PHP processes, where SERVER_NAME is the fallback host of
+	# Symfony's Request::getHost(). A site address such as "https://:8443"
+	# would then make it throw SuspiciousOperationException in the CLI.
 	skip_install_trust
 
 	{$CADDY_GLOBAL_OPTIONS}
@@ -20,7 +25,7 @@
 
 {$CADDY_EXTRA_CONFIG}
 
-{$SERVER_NAME:localhost} {
+{$CADDY_SERVER_ADDRESS:localhost} {
 	root {$SERVER_ROOT:public/}
 	encode zstd br gzip
 
