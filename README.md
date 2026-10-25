@@ -21,6 +21,7 @@ Harbor ships with all the required libraries to use:
 - [Quick start and base stack](#quick-start-and-base-stack)
 - [Main commands](#main-commands)
   - [Lifecycle](#lifecycle)
+  - [Updating images](#updating-images)
   - [Application tools](#application-tools)
   - [Shell and service tools](#shell-and-service-tools)
 - [Optional services](#optional-services)
@@ -201,6 +202,40 @@ Project files are generated in `.harbor/`. Do not edit `.harbor/compose.yaml` di
 
 `down` removes containers and networks and includes disabled profile services as orphans.
 `down -v` also removes persistent volumes, including the database volume.
+
+### Updating images
+
+`app` is built locally on top of `dunglas/frankenphp:php${HARBOR_PHP_VERSION}-${HARBOR_DEBIAN_VARIANT}`, while `db`, `redis`, `mailpit`, `cron`, and the profile services run upstream images.
+
+`up -d --build` rebuilds the `app` image, but **a rebuild is not a pull**: `FROM` resolves the base tag in the local image cache, and Docker contacts the registry only with `--pull` (`docker compose build --pull`) or an explicit `docker pull`. A base image downloaded weeks ago therefore keeps producing the same runtime, and the rebuild looks like an update while nothing changed upstream. `up -d` does not pull the upstream images of `db`, `redis`, `mailpit`, `cron`, and the profile services either: it recreates the containers on what is already on disk.
+
+To actually refresh the images, pull them explicitly:
+
+```bash
+# refresh the base image of app, then rebuild it (--pull is what makes the build fetch a newer base)
+./vendor/bin/harbor build --pull app
+
+# equivalent without going through Compose: pull the base tag, then rebuild
+# (substitute the PHP version and Debian variant set in .harbor/.env)
+docker pull dunglas/frankenphp:php8.5-trixie
+./vendor/bin/harbor up -d --build
+
+# refresh the upstream images of the base services (add your active profile services, e.g. cloudflared)
+./vendor/bin/harbor pull db redis mailpit cron
+
+# recreate the containers on the refreshed images
+./vendor/bin/harbor up -d
+```
+
+`./vendor/bin/harbor pull` without service names also tries to pull the locally built `app` image, which exists only on your machine, and fails on it: name the services, or add `--ignore-pull-failures`.
+
+Check the runtime that is actually in use:
+
+```bash
+./vendor/bin/harbor exec --service app php -v
+```
+
+Refreshing the images does not touch data: the database volume, `var/`, and the generated `.harbor/` files survive, so no `migrate` or reinstall is needed. Changing `HARBOR_PHP_VERSION` also changes the image tag, so the new image is built from scratch and the previous `maho-harbor/<project>:app-php<old>` image is left behind (`docker image prune` removes it). When the base image is pinned in a fork or in a CI workflow, update the pin there: `pull` and `--build` cannot override it.
 
 ### Application tools
 
