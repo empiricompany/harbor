@@ -15,15 +15,6 @@
     "phpstan/phpstan-strict-rules": "*",
     "rector/rector": "*"
   },
-  "autoload": {
-    "psr-4": {
-      "MahoCLI\\": "lib/MahoCLI/"
-    },
-    "classmap": [
-      "lib/MahoCLI/Commands/DbExport.php",
-      "lib/MahoCLI/Commands/DbImport.php"
-    ]
-  },
   "config": {
     "allow-plugins": {
       "mahocommerce/maho-composer-plugin": true
