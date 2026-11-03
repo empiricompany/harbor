@@ -23,6 +23,7 @@ use Rector\TypeDeclaration\Rector as TypeDeclaration;
 // change, so every path git does not track is skipped. Without
 // --exclude-standard, ls-files lists ignored files as well as plain untracked
 // ones, and --directory collapses a fully untracked directory to one entry.
+/** @return list<string> */
 function gitUntrackedPaths(): array
 {
     exec(

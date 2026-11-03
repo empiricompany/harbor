@@ -27,7 +27,9 @@ parameters:
         - phtml
 
     paths:
-        - lib
+        - phpstan-bootstrap.php
+        - rector.php
+        - .php-cs-fixer.php
 
     excludePaths:
         analyse:
