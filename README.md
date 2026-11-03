@@ -153,20 +153,20 @@ Open the admin panel:
 
 ### Import an existing database
 
-The Maho CLI commands `db:export` and `db:import` move databases in and out of the container:
+`db:export` and `db:import` are Maho CLI commands, provided by Maho itself (26.11.0 and later), and reachable through Harbor:
 
 ```bash
-# Import a dump into the database
-./vendor/bin/harbor maho db:import backup.sql.tzst [--compression=gzip|zstd|none] [--drop-tables]
+# Import a dump into the database (--empty empties it first)
+./vendor/bin/harbor maho db:import backup.sql.tzst [--compression=gzip|zstd|none] [--empty] [-f]
 
-# Export the current database to a dump file (gzip by default, --compression=none for a plain dump)
+# Export the current database to a dump file
 ./vendor/bin/harbor maho db:export backup.sql.tzst [--compression=gzip|zstd|none]
 
 # Print the resolved connection and the command that would run, without executing it
 ./vendor/bin/harbor maho db:export backup.sql.tzst --dry-run
 ```
 
-Compression is not auto-detected: a gzip or zstd dump (even with a plain `.sql` name) needs `--compression=gzip` or `--compression=zstd`. Use `--drop-tables` to empty the database before importing, for a clean restore. When `pv` is available in the container, both commands show a progress bar; `zstd` is required only when `--compression=zstd` is requested. Commands for MySQL/MariaDB, PostgreSQL and SQLite are provided by Maho itself; the image ships the matching clients, `zstd` and `pv`.
+Options and the other commands are documented in the [Maho CLI reference](https://mahocommerce.com/developer/cli-tool/). The image ships the database clients, `zstd` and `pv`, which the commands use for compression and the progress bar.
 
 Harbor does not create `app/etc/local.xml` or replace the Maho installer. Database defaults exposed to the containers are `db:3306`, database `maho`, user `maho`, and password `maho`; make sure the Maho installation uses the values appropriate for the project.
 
