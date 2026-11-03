@@ -73,6 +73,5 @@ return RectorConfig::configure()
         DeadCode\MethodCall\RemoveNullArgOnNullDefaultParamRector::class,
         DeadCode\Property\RemoveUselessVarTagRector::class,
         EarlyReturn\If_\RemoveAlwaysElseRector::class,
-        Rector\Php83\Rector\ClassMethod\AddOverrideAttributeToOverriddenMethodsRector::class,
         TypeDeclaration\StmtsAwareInterface\SafeDeclareStrictTypesRector::class,
     ]);
